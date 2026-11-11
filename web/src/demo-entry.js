@@ -2,6 +2,7 @@
 // same brain the macOS app uses. Here the "host" is the page itself.
 
 import { createPet } from './pet.js';
+import { createLookPanel } from './look-panel.js';
 import { pickLang } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -40,8 +41,35 @@ const host = {
   },
 };
 
-const pet = createPet({ canvas: $('#pet'), overlay: box, host, lang });
+// The look someone picked last time stays with their browser.
+const LOOK_KEY = 'deskpiggy.look';
+const stored = {
+  read() {
+    try {
+      return localStorage.getItem(LOOK_KEY);
+    } catch {
+      return null; // storage can be blocked; the pig just starts with its default look
+    }
+  },
+  write(look) {
+    try {
+      localStorage.setItem(LOOK_KEY, JSON.stringify(look));
+    } catch {
+      /* not remembered, still applied */
+    }
+  },
+};
+
+const pet = createPet({ canvas: $('#pet'), overlay: box, host, lang, look: stored.read() });
 window.piggy = pet;
+const lookPanel = createLookPanel($('#look-panel'), {
+  look: pet.state().look,
+  lang,
+  onChange(look) {
+    pet.config({ look });
+    stored.write(look);
+  },
+});
 
 function measure() {
   ground = innerHeight - dock.getBoundingClientRect().top - 6;
@@ -149,6 +177,7 @@ function applyLang() {
   });
   $('#btn-lang').textContent = lang === 'zh' ? 'EN' : '中文';
   pet.config({ lang });
+  lookPanel.setLang(lang);
 }
 $('#btn-lang').addEventListener('click', () => {
   lang = lang === 'zh' ? 'en' : 'zh';

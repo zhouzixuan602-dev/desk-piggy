@@ -106,6 +106,10 @@
   }
   .row input[type="text"]::placeholder { color: var(--ink-soft); }
   .hint { margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); }
+  .look { margin-top: 12px; border-top: 1px solid var(--glass-edge); padding-top: 10px; }
+  .look summary { font-weight: 600; font-size: 14px; cursor: pointer; border-radius: 8px; }
+  .look summary:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+  .look[open] summary { margin-bottom: 10px; }
   .links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 
   .assistant {
@@ -183,6 +187,10 @@
     <label><input type="checkbox" id="roam" checked><span data-zh="自由走动" data-en="Roam">自由走动</span></label>
     <input type="text" id="name" maxlength="12" autocomplete="off" data-zh="给它起个名字" data-en="Name your piggy" placeholder="给它起个名字">
   </div>
+  <details class="look" id="look">
+    <summary data-zh="外观" data-en="Appearance">外观</summary>
+    <div id="look-panel"></div>
+  </details>
   <p class="hint" data-zh="点一点、拖起来、双击它试试看。" data-en="Try a click, a drag, or a double-click.">点一点、拖起来、双击它试试看。</p>
   <div class="links">
     <a class="link" href="__REPO_URL__" target="_blank" rel="noopener">GitHub</a>

@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var pet: PetController!
     private var watcher: SiriWatcher!
+    private var lookWindow: LookWindowController!
     private var statusItem: NSStatusItem!
     /// Assistant form switched on by hand (menu, URL or Shortcut) rather than by Siri appearing.
     private var manualAssistant = false
@@ -54,6 +55,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return menu
         }
         pet.onDoubleClick = { [weak self] in self?.summonSiri() }
+
+        lookWindow = LookWindowController()
+        lookWindow.onChange = { [weak self] in self?.pet.pushSettings() }
 
         let center = PetCenter.shared
         center.onAssistantForm = { [weak self] on in self?.setManualAssistant(on) }
@@ -226,6 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         groundItem.submenu = groundMenu
         menu.addItem(groundItem)
 
+        add(L("外观…", "Appearance…")) { [weak self] in self?.lookWindow.show() }
         add(L("起名字…", "Name…")) { [weak self] in self?.askForName() }
 
         let launchesAtLogin = SMAppService.mainApp.status == .enabled

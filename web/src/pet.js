@@ -3,7 +3,8 @@
 
 import * as THREE from 'three';
 import { createStage3D } from './stage3d.js';
-import { createPig } from './pig.js';
+import { createPig, applyLook } from './pig.js';
+import { normalizeLook } from './look.js';
 import { Animator } from './animator.js';
 import { createFx } from './fx.js';
 import { createBubble } from './bubble.js';
@@ -19,10 +20,11 @@ export const VERSION = '0.1.0';
  * @param {HTMLElement} o.overlay       positioned parent for the speech bubble
  * @param {{setPosition(x:number,y:number):void, emit?(type:string,data?:object):void}} o.host
  */
-export function createPet({ canvas, overlay, host, lang = 'en', name = '' }) {
+export function createPet({ canvas, overlay, host, lang = 'en', name = '', look: initialLook = null }) {
   const stage = createStage3D(canvas);
   const { root, rig } = createPig();
   stage.scene.add(root);
+  let look = applyLook(rig, normalizeLook(initialLook));
   const fx = createFx(stage.scene);
   const animator = new Animator(rig);
   const bubble = createBubble(overlay);
@@ -122,6 +124,8 @@ export function createPet({ canvas, overlay, host, lang = 'en', name = '' }) {
     config(c = {}) {
       if (c.lang) settings.lang = pickLang(c.lang);
       if (typeof c.name === 'string') settings.name = c.name.trim().slice(0, 24);
+      // `look` may be partial, or a JSON string as the macOS shell stores it
+      if (c.look != null) look = applyLook(rig, normalizeLook(c.look, look));
       const { roam, siriSync, chatty } = c;
       const patch = {};
       if (typeof roam === 'boolean') patch.roam = roam;
@@ -142,6 +146,7 @@ export function createPet({ canvas, overlay, host, lang = 'en', name = '' }) {
       frames,
       lang: settings.lang,
       name: settings.name || STRINGS[settings.lang].name,
+      look: { ...look },
     }),
     pause(on = true) {
       paused = on;

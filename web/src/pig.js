@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { derivePalette, normalizeLook } from './look.js';
 
 export const PALETTE = {
   skin: 0xffbcc8,
@@ -216,13 +217,21 @@ function buildHead(mat) {
     const socket = stick(new THREE.Group(), hit, -0.012);
     socket.name = sx < 0 ? 'eyeR' : 'eyeL';
 
+    // Three interchangeable eye styles; applyLook() shows one of them.
     const open = new THREE.Group();
-    const ball = new THREE.Mesh(blob(0.078, 0.098, 0.05, null, 24, 18), mat.eye);
-    const glintA = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), mat.glint);
-    glintA.position.set(-0.022, 0.034, 0.038);
-    const glintB = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), mat.glint);
-    glintB.position.set(0.026, -0.03, 0.04);
-    open.add(ball, glintA, glintB);
+    const glint = (r, x, y, z) => {
+      const g = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat.glint);
+      g.position.set(x, y, z);
+      return g;
+    };
+    const sparkle = new THREE.Group(); // big and glossy, two highlights
+    sparkle.add(new THREE.Mesh(blob(0.078, 0.098, 0.05, null, 24, 18), mat.eye), glint(0.026, -0.022, 0.034, 0.038), glint(0.011, 0.026, -0.03, 0.04));
+    const button = new THREE.Group(); // round, one small highlight
+    button.add(new THREE.Mesh(blob(0.066, 0.066, 0.045, null, 24, 18), mat.eye), glint(0.016, -0.018, 0.022, 0.036));
+    const dot = new THREE.Group(); // a tiny bead
+    dot.add(new THREE.Mesh(blob(0.04, 0.043, 0.032, null, 20, 14), mat.eye));
+    button.visible = dot.visible = false;
+    open.add(sparkle, button, dot);
 
     const arcGeo = new THREE.TorusGeometry(0.068, 0.017, 8, 24, Math.PI);
     const happy = new THREE.Mesh(arcGeo, mat.eye); // "^" arch
@@ -237,7 +246,7 @@ function buildHead(mat) {
 
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(socket.quaternion);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(socket.quaternion);
-    eyes.push({ socket, open, happy, asleep, base: socket.position.clone(), right, up });
+    eyes.push({ socket, open, happy, asleep, styles: { sparkle, button, dot }, base: socket.position.clone(), right, up });
   }
 
   // Blush
@@ -487,8 +496,12 @@ export function createPig() {
     mouth: face.mouth,
     snout: face.snout,
     apple,
+    scarf,
+    belly,
+    blushLevel: 1,
     materials: mat,
   };
+  applyLook(rig, normalizeLook());
   applyPose(rig, REST);
   return { root, rig, materials: mat };
 }
@@ -576,9 +589,42 @@ export function applyPose(rig, p) {
   rig.mouth.gape.visible = open >= 0.02;
   rig.mouth.gape.scale.set(0.55 + open * 0.45, Math.max(0.05, open), 1);
 
-  rig.materials.blush.opacity = THREE.MathUtils.clamp(p.blush, 0, 1);
+  rig.materials.blush.opacity = THREE.MathUtils.clamp(p.blush, 0, 1) * rig.blushLevel;
   rig.snout.position.y = rig.snout.userData.baseY + p.snoutY * 0.02;
 
   rig.apple.visible = p.apple > 0.02;
   rig.apple.scale.setScalar(Math.max(0.001, p.apple));
+}
+
+// --- Look --------------------------------------------------------------------
+
+/** The closed-eye arcs are sized to match the open eye of each style. */
+const ARC_SCALE = { sparkle: 1, button: 0.86, dot: 0.62 };
+
+/** Recolour and re-dress the pig. `look` is validated first (see look.js). */
+export function applyLook(rig, look) {
+  const valid = normalizeLook(look);
+  const palette = derivePalette(valid);
+  const mat = rig.materials;
+  mat.skin.color.set(palette.skin);
+  mat.skin.sheenColor.set(palette.skinSheen);
+  mat.snout.color.set(palette.snout);
+  mat.earInner.color.set(palette.earInner);
+  mat.hoof.color.set(palette.hoof);
+  mat.belly.color.set(palette.belly);
+  mat.line.color.set(palette.line);
+  mat.blush.color.set(palette.blush);
+  mat.scarf.color.set(palette.scarf);
+  mat.scarf.sheenColor.set(palette.scarfSheen);
+
+  rig.scarf.visible = valid.showScarf;
+  rig.belly.visible = valid.showBelly;
+  rig.blushLevel = valid.showBlush ? 1 : 0;
+
+  for (const eye of rig.eyes) {
+    for (const [style, group] of Object.entries(eye.styles)) group.visible = style === valid.eyes;
+    eye.happy.scale.setScalar(ARC_SCALE[valid.eyes]);
+    eye.asleep.scale.setScalar(ARC_SCALE[valid.eyes]);
+  }
+  return valid;
 }

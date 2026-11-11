@@ -9,6 +9,13 @@ enum Lang {
 /// Inline bilingual strings keep the menu code readable without a strings table.
 func L(_ zh: String, _ en: String) -> String { Lang.isChinese ? zh : en }
 
+/// `text` as a JavaScript string literal, safe to splice into a script.
+func jsString(_ text: String) -> String {
+    guard let data = try? JSONSerialization.data(withJSONObject: [text]),
+          let json = String(data: data, encoding: .utf8) else { return "\"\"" }
+    return String(json.dropFirst().dropLast())
+}
+
 enum PetSize: String, CaseIterable {
     case small, medium, large
 
@@ -81,6 +88,13 @@ final class Settings {
     var name: String {
         get { defaults.string(forKey: "name") ?? "" }
         set { defaults.set(String(newValue.trimmingCharacters(in: .whitespacesAndNewlines).prefix(24)), forKey: "name") }
+    }
+
+    /// The pig's appearance, as the JSON the Appearance window produced (see web/src/look.js).
+    /// Empty means the default look.
+    var look: String {
+        get { defaults.string(forKey: "look") ?? "" }
+        set { defaults.set(newValue, forKey: "look") }
     }
 
     /// Where along the screen the pig was last standing, 0…1.

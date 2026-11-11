@@ -20,7 +20,7 @@ struct HitShape {
 
 /// WKUserContentController retains its handlers; this breaks the cycle.
 @MainActor
-private final class WeakScriptHandler: NSObject, WKScriptMessageHandler {
+final class WeakScriptHandler: NSObject, WKScriptMessageHandler {
     weak var target: WKScriptMessageHandler?
     init(_ target: WKScriptMessageHandler) { self.target = target }
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -142,10 +142,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         value.isFinite ? String(format: "%.2f", Double(value)) : "0"
     }
 
-    private func quoted(_ text: String) -> String {
-        guard let data = try? JSONSerialization.data(withJSONObject: [text]), let json = String(data: data, encoding: .utf8) else { return "\"\"" }
-        return String(json.dropFirst().dropLast())
-    }
+    private func quoted(_ text: String) -> String { jsString(text) }
 
     private func pageDidBecomeReady() {
         ready = true
@@ -273,7 +270,9 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
     func pushSettings() {
         let s = Settings.shared
-        run("piggy.config({lang: \(quoted(Lang.code)), name: \(quoted(s.name)), roam: \(s.roam), siriSync: \(s.siriSync), chatty: \(s.chatty)})")
+        // The look travels as a JSON string; the page validates it before applying anything.
+        let look = s.look.isEmpty ? "null" : quoted(s.look)
+        run("piggy.config({lang: \(quoted(Lang.code)), name: \(quoted(s.name)), roam: \(s.roam), siriSync: \(s.siriSync), chatty: \(s.chatty), look: \(look)})")
     }
 
     /// Apply a new size, keeping the pig's feet where they are.
