@@ -94,34 +94,54 @@ jobs:
         run: |
           DESKPIGGY_SMOKE_REPORT="$PWD/smoke.json" "$APP/Contents/MacOS/Desk Piggy" &
           PID=$!
-          for i in 1 2 3; do
-            sleep 5
-            kill -0 "$PID" 2>/dev/null && screencapture -x "smoke-$i.png" 2>/dev/null || true
+          # The app creates smoke.json.pose once the pig is on screen and holding still.
+          for i in $(seq 1 120); do
+            [ -f smoke.json.pose ] && break
+            kill -0 "$PID" 2>/dev/null || break
+            sleep 0.5
           done
+          [ -f smoke.json.pose ] && screencapture -x with-pig.png
           STATUS=0
           wait "$PID" || STATUS=$?
           echo "exit status: $STATUS"
           cat smoke.json 2>/dev/null || echo "no report was written"
-          # TEMPORARY: artifacts cannot be fetched from where this is being developed, so put one
-          # screenshot in the log to eyeball the first real render. Remove once looked at.
-          csrutil status || true
-          ls -la smoke-*.png 2>/dev/null || echo "no screenshots were taken"
-          if [ -f smoke-2.png ] && sips -Z 1024 -s format jpeg -s formatOptions 45 smoke-2.png --out shot.jpg >/dev/null 2>&1; then
-            echo "-----BEGIN SHOT-----"; base64 -i shot.jpg | fold -w 180; echo "-----END SHOT-----"
-          fi
-          # TEMPORARY reference: the same pig in Safari, to see whether this machine shows WebGL at all.
-          open -a Safari "file://$PWD/docs/index.html" || true
-          sleep 14
-          screencapture -x safari.png 2>/dev/null || true
-          if [ -f safari.png ] && sips -Z 1024 -s format jpeg -s formatOptions 45 safari.png --out safari.jpg >/dev/null 2>&1; then
-            echo "-----BEGIN SAFARI-----"; base64 -i safari.jpg | fold -w 180; echo "-----END SAFARI-----"
-          fi
-          osascript -e 'quit app "Safari"' || true
           if [ "$STATUS" -eq 3 ]; then
             echo "::warning::This runner's web view has no WebGL, so the pig could not be drawn here. The bridge itself was not exercised."
             exit 0
           fi
-          exit "$STATUS"
+          [ "$STATUS" -eq 0 ] || exit "$STATUS"
+          sleep 1
+          screencapture -x without-pig.png
+
+      - name: The pig is really on screen
+        run: |
+          # Compare the screen with and without the app, inside the pig's window. This is what
+          # catches "everything reports fine but nothing is visible".
+          if [ ! -f with-pig.png ] || [ ! -f without-pig.png ]; then
+            echo "::warning::No screenshots to compare, so the on-screen check was skipped."
+            exit 0
+          fi
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet pillow
+          .venv/bin/python - <<'PY'
+          import json, re
+          from PIL import Image, ImageChops
+
+          report = json.load(open("smoke.json"))
+          win = report["window"]
+          _, _, screen_w, screen_h = map(float, re.findall(r"[-\d.]+", report["screens"][0]))
+          shown = Image.open("with-pig.png").convert("RGB")
+          empty = Image.open("without-pig.png").convert("RGB")
+          k = shown.width / screen_w  # screenshots are in pixels, window frames in points
+          box = tuple(round(v * k) for v in (win["x"], screen_h - win["y"] - win["height"], win["x"] + win["width"], screen_h - win["y"]))
+          diff = ImageChops.difference(shown.crop(box), empty.crop(box)).convert("L")
+          changed = sum(1 for v in diff.getdata() if v > 24) / (diff.width * diff.height)
+          print(f"The pig's window differs from the empty desktop in {changed:.1%} of its pixels.")
+          shown.crop(box).save("pig-on-screen.png")
+          assert changed > 0.05, "the pig is not visible on screen"
+          PY
+          # TEMPORARY: show the crop in the log (artifacts cannot be fetched during development).
+          sips -s format jpeg -s formatOptions 60 pig-on-screen.png --out pig.jpg >/dev/null 2>&1 && { echo "-----BEGIN SHOT-----"; base64 -i pig.jpg | fold -w 180; echo "-----END SHOT-----"; }
 
       - name: Package
         run: |
@@ -140,7 +160,9 @@ jobs:
           path: |
             build.log
             smoke.json
-            smoke-*.png
+            with-pig.png
+            without-pig.png
+            pig-on-screen.png
           if-no-files-found: ignore
 
   release:

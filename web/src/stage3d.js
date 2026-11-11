@@ -1,5 +1,11 @@
 // Renderer, camera, lights and the soft contact shadow.
-// The canvas is transparent: on macOS it is composited straight onto the desktop.
+//
+// The visible canvas is a plain, transparent 2D canvas. WebGL draws into a canvas that
+// is never attached to the page, and every finished frame is copied across. That costs
+// one small copy per frame, but it means the pig is shown through the same path as any
+// 2D drawing. WebGL layers themselves are not always put on screen: in virtual machines
+// (including the macOS CI runners) the page renders correctly, snapshots contain the
+// pig, and yet the canvas stays invisible in the window.
 
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -22,8 +28,10 @@ function shadowTexture(size = 256) {
 }
 
 export function createStage3D(canvas) {
+  const surface = document.createElement('canvas'); // off-screen WebGL target
+  const screen = canvas.getContext('2d');
   const renderer = new THREE.WebGLRenderer({
-    canvas,
+    canvas: surface,
     alpha: true,
     antialias: true,
     premultipliedAlpha: true,
@@ -96,6 +104,8 @@ export function createStage3D(canvas) {
     height = h;
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h, false);
+    canvas.width = surface.width;
+    canvas.height = surface.height;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
@@ -109,7 +119,12 @@ export function createStage3D(canvas) {
   }
   setShadow(0, 0);
 
-  const render = () => renderer.render(scene, camera);
+  function render() {
+    renderer.render(scene, camera);
+    // Copy while the frame is still in the drawing buffer (it is discarded after this task).
+    screen.clearRect(0, 0, canvas.width, canvas.height);
+    if (surface.width && surface.height) screen.drawImage(surface, 0, 0);
+  }
 
   /** Pixels per world unit at z = 0 for a canvas `h` CSS pixels tall. */
   const pxPerUnit = (h = height) => h / VIEW.extent;
