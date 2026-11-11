@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  # Publishing a release on github.com (with a new v* tag) also builds and attaches the app.
+  release:
+    types: [published]
   pull_request:
   workflow_dispatch:
 
@@ -175,11 +178,21 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: DeskPiggy-macOS
-      - name: Create the release
+      - name: Publish the app on the release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$GITHUB_REF_NAME" DeskPiggy-macOS.zip \
-            --title "Desk Piggy $GITHUB_REF_NAME" \
-            --notes-file .github/release-notes.md \
-            --generate-notes
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # The release was drafted on github.com: attach the build, and fill in the
+            # install notes if it was published without any text.
+            gh release upload "$TAG" DeskPiggy-macOS.zip --clobber
+            if [ -z "$(gh release view "$TAG" --json body --jq .body)" ]; then
+              gh release edit "$TAG" --notes-file .github/release-notes.md
+            fi
+          else
+            gh release create "$TAG" DeskPiggy-macOS.zip \
+              --title "Desk Piggy $TAG" \
+              --notes-file .github/release-notes.md \
+              --generate-notes
+          fi
