@@ -170,7 +170,8 @@ struct TransformIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         PetCenter.shared.setAssistantForm(enabled)
-        return .result(dialog: enabled ? "小猪变身！" : "小猪变回来了。")
+        let reply: IntentDialog = enabled ? "小猪变身！" : "小猪变回来了。"
+        return .result(dialog: reply)
     }
 }
 

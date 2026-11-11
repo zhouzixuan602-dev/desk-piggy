@@ -82,8 +82,11 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
         content.add(WeakScriptHandler(self), name: "piggy")
         webView.navigationDelegate = self
-        // Draw nothing behind the page so the desktop shows through.
-        webView.setValue(false, forKey: "drawsBackground")
+        // Draw nothing behind the page so the desktop shows through. The switch for this has no
+        // public name, so check that it is still there rather than risk an exception at launch.
+        if webView.responds(to: NSSelectorFromString("_setDrawsBackground:")) || webView.responds(to: NSSelectorFromString("setDrawsBackground:")) {
+            webView.setValue(false, forKey: "drawsBackground")
+        }
         webView.underPageBackgroundColor = .clear
         webView.autoresizingMask = [.width, .height]
 
@@ -152,7 +155,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         pushStage()
         pushSettings()
         run("piggy.place(\(number(position.x)), 0)")
-        queued.forEach(run)
+        for script in queued { run(script) }
         if assistantActive { run("piggy.siri(true, null, {manual: true})") }
         panel.orderFrontRegardless()
         onReady?()
@@ -225,15 +228,21 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         var candidate = screen
         if candidate == nil, let current = stageScreen {
             // still plugged in?
-            candidate = NSScreen.screens.first { $0 == current }
+            candidate = NSScreen.screens.first(where: { $0.frame == current.frame })
         }
         if candidate == nil { candidate = NSScreen.main ?? NSScreen.screens.first }
         guard let chosen = candidate else { return false }
         let rect = stageRect(for: chosen)
-        let changed = rect != stage || chosen != stageScreen
+        let changed = rect != stage
         stageScreen = chosen
         stage = rect
         return changed
+    }
+
+    /// NSScreen objects come and go; two screens are the same stage if they cover the same area.
+    private func isStageScreen(_ screen: NSScreen) -> Bool {
+        guard let current = stageScreen else { return false }
+        return current.frame == screen.frame
     }
 
     private func pushStage() {
@@ -319,7 +328,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         if let assistantFrame = frame {
             let centre = NSPoint(x: assistantFrame.midX, y: assistantFrame.midY)
             if let screen = NSScreen.screens.first(where: { $0.frame.contains(centre) }) {
-                if screen != stageScreen, !dragging {
+                if !isStageScreen(screen), !dragging {
                     refreshStage(on: screen)
                     pushStage()
                 }
@@ -380,7 +389,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         dragging = false
         // Dropped on another display? That display becomes the stage.
         let centre = NSPoint(x: panel.frame.midX, y: panel.frame.minY + hit.cy)
-        if let screen = NSScreen.screens.first(where: { $0.frame.contains(centre) }), screen != stageScreen {
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(centre) }), !isStageScreen(screen) {
             refreshStage(on: screen)
             pushStage()
         }
