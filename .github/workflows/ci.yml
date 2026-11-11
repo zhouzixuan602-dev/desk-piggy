@@ -104,6 +104,7 @@ jobs:
           cat smoke.json 2>/dev/null || echo "no report was written"
           # TEMPORARY: artifacts cannot be fetched from where this is being developed, so put one
           # screenshot in the log to eyeball the first real render. Remove once looked at.
+          csrutil status || true
           ls -la smoke-*.png 2>/dev/null || echo "no screenshots were taken"
           if [ -f smoke-2.png ] && sips -Z 1024 -s format jpeg -s formatOptions 45 smoke-2.png --out shot.jpg >/dev/null 2>&1; then
             echo "-----BEGIN SHOT-----"; base64 -i shot.jpg | fold -w 180; echo "-----END SHOT-----"

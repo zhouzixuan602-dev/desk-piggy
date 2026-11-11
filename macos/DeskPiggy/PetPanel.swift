@@ -16,10 +16,10 @@ final class PetPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
+        isFloatingPanel = true // this also moves the panel to the floating level, so set ours afterwards
         level = PetPanel.restingLevel
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         hidesOnDeactivate = false
-        isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
         isMovable = false
         isReleasedWhenClosed = false

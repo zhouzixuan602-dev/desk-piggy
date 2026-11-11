@@ -1,5 +1,4 @@
 import AppKit
-import QuartzCore
 import WebKit
 
 /// The clickable part of the window, reported by the page (window points, origin bottom-left).
@@ -61,9 +60,6 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     private var assistantActive = false
     private var trackTimer: Timer?
     private var ticks = 0
-    /// A one-point layer the shell itself redraws while `heartbeat` is on (see `track`).
-    private let pulse = CALayer()
-    var heartbeat = false
     private var lastPointer = CGPoint(x: CGFloat.greatestFiniteMagnitude, y: 0)
 
     var menuProvider: (() -> NSMenu)?
@@ -103,9 +99,6 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         container.addSubview(webView)
         container.addSubview(overlay) // on top: it swallows every mouse event
         panel.contentView = container
-
-        pulse.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
-        pulse.backgroundColor = NSColor(white: 1, alpha: 0.02).cgColor
 
         refreshStage(on: NSScreen.main ?? NSScreen.screens.first)
         position = CGPoint(x: stage.width * CGFloat(Settings.shared.lastSpot), y: 0)
@@ -449,14 +442,6 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         }
         if ticks % 600 == 0 { rememberSpot() }
         guard isVisible else { return }
-
-        if heartbeat {
-            if pulse.superlayer == nil { panel.contentView?.layer?.addSublayer(pulse) }
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            pulse.opacity = pulse.opacity > 0.7 ? 0.5 : 1
-            CATransaction.commit()
-        }
 
         let mouse = NSEvent.mouseLocation
         let frame = panel.frame
