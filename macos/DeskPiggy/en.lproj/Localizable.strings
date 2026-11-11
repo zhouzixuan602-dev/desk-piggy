@@ -61,3 +61,9 @@
 "让桌面小猪用气泡说一句话。" = "The desk piggy says something in a speech bubble.";
 "内容" = "Text";
 "让小猪说%@" = "Make Piggy say %@";
+
+/* Short titles of the App Shortcuts (the voice phrases themselves are in AppShortcuts.strings). */
+"喂苹果" = "Feed";
+"躲起来" = "Hide";
+"出来" = "Show";
+"变身" = "Transform";

@@ -76,6 +76,16 @@ jobs:
           find "$APP/Contents/Resources" -maxdepth 2 | sort
           test -f "$APP/Contents/Resources/pet.html"
           test -d "$APP/Contents/Resources/Metadata.appintents"
+          echo "--- App Intents metadata"
+          python3 - "$APP/Contents/Resources/Metadata.appintents/extract.actionsdata" <<'PY' || true
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          print("keys:", sorted(data))
+          print("actions:", len(data.get("actions", {})))
+          shortcuts = data.get("autoShortcuts", [])
+          print("app shortcuts:", len(shortcuts))
+          print(json.dumps(shortcuts, ensure_ascii=False)[:3000])
+          PY
           echo "--- binary"
           lipo -archs "$APP/Contents/MacOS/Desk Piggy"
           codesign --verify --deep --strict --verbose=2 "$APP"
@@ -92,6 +102,12 @@ jobs:
           wait "$PID" || STATUS=$?
           echo "exit status: $STATUS"
           cat smoke.json 2>/dev/null || echo "no report was written"
+          # TEMPORARY: artifacts cannot be fetched from where this is being developed, so put one
+          # screenshot in the log to eyeball the first real render. Remove once looked at.
+          ls -la smoke-*.png 2>/dev/null || echo "no screenshots were taken"
+          if [ -f smoke-2.png ] && sips -Z 1024 -s format jpeg -s formatOptions 45 smoke-2.png --out shot.jpg >/dev/null 2>&1; then
+            echo "-----BEGIN SHOT-----"; base64 -i shot.jpg | fold -w 180; echo "-----END SHOT-----"
+          fi
           if [ "$STATUS" -eq 3 ]; then
             echo "::warning::This runner's web view has no WebGL, so the pig could not be drawn here. The bridge itself was not exercised."
             exit 0

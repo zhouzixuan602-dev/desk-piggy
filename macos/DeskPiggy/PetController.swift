@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import WebKit
 
 /// The clickable part of the window, reported by the page (window points, origin bottom-left).
@@ -60,6 +61,9 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     private var assistantActive = false
     private var trackTimer: Timer?
     private var ticks = 0
+    /// A one-point layer the shell itself redraws while `heartbeat` is on (see `track`).
+    private let pulse = CALayer()
+    var heartbeat = false
     private var lastPointer = CGPoint(x: CGFloat.greatestFiniteMagnitude, y: 0)
 
     var menuProvider: (() -> NSMenu)?
@@ -100,6 +104,9 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         container.addSubview(overlay) // on top: it swallows every mouse event
         panel.contentView = container
 
+        pulse.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+        pulse.backgroundColor = NSColor(white: 1, alpha: 0.02).cgColor
+
         refreshStage(on: NSScreen.main ?? NSScreen.screens.first)
         position = CGPoint(x: stage.width * CGFloat(Settings.shared.lastSpot), y: 0)
         place()
@@ -136,6 +143,34 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     /// Ask the page something; the answer comes back on the main thread.
     func evaluate(_ script: String, completion: @escaping (Any?) -> Void) {
         webView.evaluateJavaScript(script) { value, _ in completion(value) }
+    }
+
+    /// Render the page off-screen and report how much of it is see-through (used by the self-check).
+    func inspectSnapshot(completion: @escaping ([String: Any]) -> Void) {
+        webView.takeSnapshot(with: nil) { image, failure in
+            guard let image = image, let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else {
+                completion(["error": failure?.localizedDescription ?? "no image"])
+                return
+            }
+            let width = bitmap.pixelsWide
+            let height = bitmap.pixelsHigh
+            var solid = 0
+            var samples = 0
+            for y in stride(from: 0, to: height, by: 4) {
+                for x in stride(from: 0, to: width, by: 4) {
+                    samples += 1
+                    if let colour = bitmap.colorAt(x: x, y: y), colour.alphaComponent > 0.5 { solid += 1 }
+                }
+            }
+            let corner = bitmap.colorAt(x: 2, y: 2)?.alphaComponent ?? -1
+            completion([
+                "width": width,
+                "height": height,
+                "hasAlpha": bitmap.hasAlpha,
+                "cornerAlpha": Double(corner),
+                "coverage": samples > 0 ? Double(solid) / Double(samples) : 0,
+            ])
+        }
     }
 
     private func number(_ value: CGFloat) -> String {
@@ -414,6 +449,14 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         }
         if ticks % 600 == 0 { rememberSpot() }
         guard isVisible else { return }
+
+        if heartbeat {
+            if pulse.superlayer == nil { panel.contentView?.layer?.addSublayer(pulse) }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            pulse.opacity = pulse.opacity > 0.7 ? 0.5 : 1
+            CATransaction.commit()
+        }
 
         let mouse = NSEvent.mouseLocation
         let frame = panel.frame

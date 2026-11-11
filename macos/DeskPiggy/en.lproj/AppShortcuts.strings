@@ -1,45 +1,33 @@
-/* English voice phrases. Keys are the Chinese phrases from PiggyShortcuts in Intents.swift. */
-
 "跟${applicationName}打招呼" = "Say hi to ${applicationName}";
 "${applicationName}打个招呼" = "${applicationName} say hi";
 "${applicationName}你好" = "Hello ${applicationName}";
-"打招呼" = "Wave";
 
 "让${applicationName}跳舞" = "Make ${applicationName} dance";
 "${applicationName}跳舞" = "${applicationName} dance";
 "${applicationName}跳个舞" = "Dance for me ${applicationName}";
-"跳舞" = "Dance";
 
 "让${applicationName}跳一下" = "Make ${applicationName} hop";
 "${applicationName}跳一下" = "${applicationName} hop";
-"跳一下" = "Hop";
 
 "喂${applicationName}" = "Feed ${applicationName}";
 "给${applicationName}吃苹果" = "Give ${applicationName} an apple";
 "${applicationName}吃饭" = "${applicationName} snack time";
-"喂苹果" = "Feed";
 
 "让${applicationName}睡觉" = "Put ${applicationName} to sleep";
 "${applicationName}睡觉" = "${applicationName} go to sleep";
 "${applicationName}晚安" = "Good night ${applicationName}";
-"睡觉" = "Sleep";
 
 "叫醒${applicationName}" = "Wake ${applicationName} up";
 "${applicationName}起床" = "${applicationName} wake up";
-"起床" = "Wake up";
 
 "叫${applicationName}过来" = "Call ${applicationName} over";
 "${applicationName}过来" = "${applicationName} come here";
-"过来" = "Come here";
 
 "让${applicationName}躲起来" = "Hide ${applicationName}";
 "${applicationName}躲起来" = "${applicationName} go hide";
-"躲起来" = "Hide";
 
 "让${applicationName}出来" = "Show ${applicationName}";
 "${applicationName}出来" = "${applicationName} come out";
-"出来" = "Show";
 
 "让${applicationName}变身" = "Transform ${applicationName}";
 "${applicationName}变身" = "${applicationName} transform";
-"变身" = "Transform";
