@@ -1,0 +1,10 @@
+node_modules/
+build/
+shots/
+*.log
+.DS_Store
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Desk Piggy · 桌面小猪</title>
+<meta name="description" content="A 3D desktop pet pig for macOS that becomes the face of your voice assistant. 一只会变身语音助手的 3D 桌面小猪。">
+<meta name="color-scheme" content="light dark">
+<style>
+  :root {
+    --ink: #4a2233;
+    --ink-soft: #8a6272;
+    --glass: rgba(255, 255, 255, .66);
+    --glass-edge: rgba(255, 255, 255, .85);
+    --accent: #ff6f9c;
+    --accent-ink: #fff;
+    --chip: rgba(255, 255, 255, .78);
+    --chip-hover: #fff;
+    --shadow: 0 18px 50px rgba(150, 60, 100, .18);
+    --wall-a: #ffe4ec;
+    --wall-b: #e3f1ff;
+    --wall-c: #fff6e6;
+    --wall-d: #efe6ff;
+    --wall-base: #fbf3f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #fbe9ef;
+      --ink-soft: #c9a9b7;
+      --glass: rgba(48, 30, 52, .62);
+      --glass-edge: rgba(255, 255, 255, .14);
+      --chip: rgba(255, 255, 255, .1);
+      --chip-hover: rgba(255, 255, 255, .2);
+      --shadow: 0 18px 50px rgba(0, 0, 0, .45);
+      --wall-a: #4a2145;
+      --wall-b: #1f2f58;
+      --wall-c: #3a2a4d;
+      --wall-d: #2a1f47;
+      --wall-base: #1b1426;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    overflow: hidden;
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(60vmax 50vmax at 12% 18%, var(--wall-a), transparent 70%),
+      radial-gradient(55vmax 45vmax at 88% 8%, var(--wall-b), transparent 70%),
+      radial-gradient(60vmax 50vmax at 78% 92%, var(--wall-c), transparent 70%),
+      radial-gradient(50vmax 45vmax at 18% 96%, var(--wall-d), transparent 70%),
+      var(--wall-base);
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+
+  .menubar {
+    position: fixed; inset: 0 0 auto 0; height: 30px; z-index: 3;
+    display: flex; align-items: center; gap: 10px; padding: 0 14px;
+    font-size: 13px; font-weight: 600;
+    background: var(--glass); border-bottom: 1px solid var(--glass-edge);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  }
+  .menubar .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: inset 0 0 0 4px #ffc4d5; }
+  .menubar .muted { font-weight: 500; color: var(--ink-soft); }
+  .menubar .sp { flex: 1; }
+
+  .card {
+    position: fixed; z-index: 2; left: 20px; top: 50px; width: min(340px, calc(100vw - 40px));
+    max-height: calc(100vh - 150px); overflow: auto;
+    padding: 20px 20px 16px; border-radius: 24px;
+    background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--shadow);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5);
+  }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font-size: 26px; line-height: 1.2; letter-spacing: -.01em; }
+  .lede { margin: 8px 0 16px; color: var(--ink-soft); font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button, .link {
+    font: inherit; font-weight: 600; font-size: 14px; color: var(--ink);
+    padding: 9px 6px; border-radius: 13px; border: 1px solid var(--glass-edge);
+    background: var(--chip); cursor: pointer; text-align: center; text-decoration: none;
+    transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+  }
+  button:hover, .link:hover { background: var(--chip-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(150, 60, 100, .14); }
+  button:active, .link:active { transform: translateY(0) scale(.97); }
+  button:focus-visible, .link:focus-visible, input:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+  #btn-lang { padding: 4px 10px; font-size: 12px; border-radius: 999px; }
+  .primary {
+    display: block; width: 100%; margin-top: 10px; padding: 11px 12px; border: 0;
+    color: var(--accent-ink);
+    background: linear-gradient(100deg, #ff5fa2, #b16bff 45%, #4d9dff 80%, #3fd9d0);
+    background-size: 160% 100%; background-position: 0 0;
+  }
+  .primary:hover { background: linear-gradient(100deg, #ff5fa2, #b16bff 45%, #4d9dff 80%, #3fd9d0); background-size: 160% 100%; background-position: 100% 0; }
+  .primary[aria-pressed="true"] { box-shadow: 0 0 0 3px rgba(177, 107, 255, .35); }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .row label { display: flex; align-items: center; gap: 7px; font-size: 14px; white-space: nowrap; cursor: pointer; }
+  .row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent); }
+  .row input[type="text"] {
+    flex: 1; min-width: 0; font: inherit; font-size: 14px; color: var(--ink);
+    padding: 7px 11px; border-radius: 11px; border: 1px solid var(--glass-edge); background: var(--chip);
+    -webkit-user-select: text; user-select: text;
+  }
+  .row input[type="text"]::placeholder { color: var(--ink-soft); }
+  .hint { margin: 12px 0 0; font-size: 13px; color: var(--ink-soft); }
+  .links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+
+  .assistant {
+    position: fixed; z-index: 2; top: 46px; right: 18px; width: min(300px, calc(100vw - 36px));
+    display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 22px;
+    background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--shadow);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5);
+    opacity: 0; transform: translateY(-10px) scale(.96); pointer-events: none;
+    transition: opacity .25s ease, transform .3s cubic-bezier(.3, 1.4, .5, 1);
+  }
+  .assistant.on { opacity: 1; transform: none; }
+  .assistant b { display: block; font-size: 14px; }
+  .assistant span { font-size: 13px; color: var(--ink-soft); }
+  .bars { display: flex; align-items: center; gap: 4px; height: 34px; }
+  .bars i { width: 5px; height: 10px; border-radius: 3px; background: linear-gradient(#ff5fa2, #4d9dff); animation: bar 1s ease-in-out infinite; }
+  .bars i:nth-child(2) { animation-delay: .12s; } .bars i:nth-child(3) { animation-delay: .24s; }
+  .bars i:nth-child(4) { animation-delay: .36s; } .bars i:nth-child(5) { animation-delay: .48s; }
+  @keyframes bar { 0%, 100% { height: 8px; } 50% { height: 30px; } }
+
+  .dock {
+    position: fixed; z-index: 1; left: 0; right: 0; bottom: 0; height: 74px;
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--glass); border-top: 1px solid var(--glass-edge);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5);
+  }
+  .dock i { width: 44px; height: 44px; border-radius: 13px; opacity: .9; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 3px 8px rgba(0, 0, 0, .08); }
+  .dock i:nth-child(1) { background: linear-gradient(140deg, #ffb3c7, #ff7fa3); }
+  .dock i:nth-child(2) { background: linear-gradient(140deg, #b9d8ff, #6fa8ff); }
+  .dock i:nth-child(3) { background: linear-gradient(140deg, #c8f3df, #58cfb8); }
+  .dock i:nth-child(4) { background: linear-gradient(140deg, #ffe9b0, #ffc04d); }
+  .dock i:nth-child(5) { background: linear-gradient(140deg, #dccbff, #a98bff); }
+
+  #pet-box { position: fixed; z-index: 4; left: 0; bottom: 0; width: 300px; height: 340px; pointer-events: none; will-change: transform; }
+  #pet-box.gone { visibility: hidden; }
+  #pet { display: block; width: 100%; height: 100%; }
+
+  @media (max-width: 560px) {
+    .card { left: 12px; top: 42px; width: calc(100vw - 24px); padding: 16px; max-height: 46vh; }
+    h1 { font-size: 22px; }
+    .assistant { top: calc(46vh + 54px); right: 12px; }
+    .dock i:nth-child(n+5) { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bars i { animation: none; height: 18px; }
+    button, .link, .assistant { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="menubar"><span class="dot"></span><span>Desk Piggy</span><span class="muted" data-zh="演示" data-en="Demo">演示</span><span class="sp"></span><span class="muted" id="clock"></span></div>
+
+<main class="card">
+  <div class="card-head">
+    <h1 data-zh="桌面小猪" data-en="Desk Piggy">桌面小猪</h1>
+    <button id="btn-lang" type="button">EN</button>
+  </div>
+  <p class="lede" data-zh="一只住在 Mac 桌面上的 3D 小猪。唤起 Siri 时，它会飞过去，变成助手的样子听你说话。" data-en="A 3D piggy that lives on your Mac desktop. Summon Siri and it flies over to become the face you talk to.">一只住在 Mac 桌面上的 3D 小猪。唤起 Siri 时，它会飞过去，变成助手的样子听你说话。</p>
+
+  <div class="grid">
+    <button type="button" data-cmd="wave" data-zh="打招呼" data-en="Wave">打招呼</button>
+    <button type="button" data-cmd="dance" data-zh="跳舞" data-en="Dance">跳舞</button>
+    <button type="button" data-cmd="hop" data-zh="跳一下" data-en="Hop">跳一下</button>
+    <button type="button" data-cmd="eat" data-zh="吃苹果" data-en="Feed">吃苹果</button>
+    <button type="button" data-cmd="sit" data-zh="坐下" data-en="Sit">坐下</button>
+    <button type="button" data-cmd="sleep" data-zh="睡觉" data-en="Sleep">睡觉</button>
+    <button type="button" data-cmd="come" data-zh="过来" data-en="Come">过来</button>
+    <button type="button" data-cmd="wake" data-zh="起床" data-en="Wake">起床</button>
+    <button type="button" data-cmd="toggle" data-zh="躲猫猫" data-en="Hide">躲猫猫</button>
+  </div>
+
+  <button type="button" class="primary" id="btn-assistant" aria-pressed="false" data-zh="模拟唤起语音助手" data-en="Simulate the voice assistant">模拟唤起语音助手</button>
+
+  <div class="row">
+    <label><input type="checkbox" id="roam" checked><span data-zh="自由走动" data-en="Roam">自由走动</span></label>
+    <input type="text" id="name" maxlength="12" autocomplete="off" data-zh="给它起个名字" data-en="Name your piggy" placeholder="给它起个名字">
+  </div>
+  <p class="hint" data-zh="点一点、拖起来、双击它试试看。" data-en="Try a click, a drag, or a double-click.">点一点、拖起来、双击它试试看。</p>
+  <div class="links">
+    <a class="link" href="__REPO_URL__" target="_blank" rel="noopener">GitHub</a>
+    <a class="link" href="__REPO_URL__/releases/latest" target="_blank" rel="noopener" data-zh="下载 macOS 版" data-en="Get the Mac app">下载 macOS 版</a>
+  </div>
+</main>
+
+<div class="assistant" id="assistant" aria-hidden="true">
+  <div class="bars"><i></i><i></i><i></i><i></i><i></i></div>
+  <div><b data-zh="语音助手（演示）" data-en="Voice assistant (demo)">语音助手（演示）</b><span data-zh="正在聆听…" data-en="Listening…">正在聆听…</span></div>
+</div>
+
+<div class="dock" id="dock"><i></i><i></i><i></i><i></i><i></i></div>
+<div id="pet-box"><canvas id="pet"></canvas></div>
+
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>

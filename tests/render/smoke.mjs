@@ -1,0 +1,158 @@
+// End-to-end smoke test: load both built pages in headless Chromium, drive the
+// pig through every command, and fail on any page error or an empty canvas.
+//   node tests/render/smoke.mjs [--shots <dir>]
+
+import { createRequire } from 'node:module';
+import { readFileSync, mkdirSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const shotsAt = process.argv.indexOf('--shots');
+const shotDir = shotsAt > 0 ? resolve(process.argv[shotsAt + 1]) : null;
+if (shotDir) mkdirSync(shotDir, { recursive: true });
+
+let failed = 0;
+const check = (ok, label, detail = '') => {
+  console.log(`${ok ? '✓' : '✗'} ${label}${detail ? `  — ${detail}` : ''}`);
+  if (!ok) failed++;
+};
+
+const browser = await chromium.launch();
+
+async function open(file, { width, height, init }) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text()}`));
+  if (init) await page.addInitScript(init);
+  await page.goto(pathToFileURL(resolve(root, file)).href);
+  await page.waitForFunction(() => globalThis.piggy?.ready === true, null, { timeout: 30000 });
+  return { page, errors };
+}
+
+/** Fraction of canvas pixels that are not fully transparent. */
+const coverage = (page) =>
+  page.evaluate(() => {
+    const src = document.getElementById('pet');
+    const c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = src.height;
+    const ctx = c.getContext('2d');
+    piggy.step(1 / 60, 1); // draw, then read back in the same task
+    ctx.drawImage(src, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n++;
+    return n / (d.length / 4);
+  });
+
+// --- 1. the page the macOS app loads -------------------------------------------
+{
+  const { page, errors } = await open('macos/DeskPiggy/Resources/pet.html', {
+    width: 300,
+    height: 340,
+    init: () => {
+      globalThis.__msgs = [];
+      globalThis.webkit = { messageHandlers: { piggy: { postMessage: (m) => globalThis.__msgs.push(m) } } };
+    },
+  });
+  const types = await page.evaluate(() => [...new Set(__msgs.map((m) => m.type))]);
+  check(types.includes('ready'), 'pet.html posts "ready" to the native bridge', types.join(', '));
+  check(types.includes('hit'), 'pet.html reports its hit shape');
+  const hit = await page.evaluate(() => __msgs.filter((m) => m.type === 'hit').pop());
+  check(hit && hit.rx > 40 && hit.ry > 50 && hit.foot > 10 && hit.foot < 80, 'hit shape is plausible', JSON.stringify(hit));
+
+  await page.evaluate(() => {
+    piggy.pause(true);
+    piggy.stage({ width: 1440, height: 800 });
+    piggy.place(700, 0);
+    piggy.config({ roam: false }); // no wandering off while we test
+  });
+  const transparent = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check(/rgba\(0, 0, 0, 0\)|transparent/.test(transparent), 'page background is transparent', transparent);
+
+  const cov = await coverage(page);
+  check(cov > 0.05 && cov < 0.6, 'pig is drawn on a transparent canvas', `${(cov * 100).toFixed(1)}% of pixels`);
+  if (shotDir) await page.screenshot({ path: resolve(shotDir, 'pet.png'), omitBackground: true });
+
+  const commands = await page.evaluate(() => piggy.commands);
+  for (const cmd of commands) {
+    const res = await page.evaluate((cmd) => {
+      const ok = piggy.command(cmd, cmd === 'say' ? { text: 'hi' } : {});
+      piggy.step(1 / 60, 240);
+      return { ok, state: piggy.state() };
+    }, cmd);
+    check(res.ok === true && Number.isFinite(res.state.x) && Number.isFinite(res.state.y), `command "${cmd}"`, `${res.state.mode}/${res.state.clip}`);
+    await page.evaluate(() => {
+      // settle back to a known state between commands
+      if (piggy.state().mode === 'hidden') piggy.command('show');
+      piggy.command('wake');
+      piggy.step(1 / 60, 600);
+      piggy.command('stand');
+      piggy.step(1 / 60, 60);
+    });
+  }
+  check((await page.evaluate(() => piggy.command('nope'))) === false, 'unknown commands are rejected');
+
+  // assistant form: fly to an anchor, hover, come home
+  const siri = await page.evaluate(() => {
+    const before = piggy.state();
+    piggy.siri(true, { x: 1200, y: 420 });
+    piggy.step(1 / 60, 180);
+    const during = piggy.state();
+    piggy.siri(false);
+    piggy.step(1 / 60, 240);
+    return { before, during, after: piggy.state() };
+  });
+  check(siri.during.siri && siri.during.mode === 'siri' && Math.abs(siri.during.x - 1200) < 3 && Math.abs(siri.during.y - 420) < 3 && siri.during.aura > 0.9, 'assistant form flies to its anchor and glows', `${siri.during.x.toFixed(0)},${siri.during.y.toFixed(0)}`);
+  check(!siri.after.siri && siri.after.y === 0 && Math.abs(siri.after.x - siri.before.x) < 1 && siri.after.aura < 0.05, 'and returns home afterwards', `${siri.after.mode} at ${siri.after.x.toFixed(0)}`);
+
+  // drag, drop, fall
+  const drop = await page.evaluate(() => {
+    piggy.dragStart();
+    piggy.dragMove(500, 300);
+    piggy.step(1 / 60, 10);
+    const held = piggy.state();
+    piggy.dragEnd(0, 0);
+    piggy.step(1 / 60, 5);
+    const falling = piggy.state();
+    piggy.step(1 / 60, 200);
+    return { held, falling, landed: piggy.state() };
+  });
+  check(drop.held.mode === 'drag' && drop.falling.mode === 'fall' && drop.falling.y < 300 && drop.landed.y === 0, 'drag, drop and land', `${drop.held.mode} → ${drop.falling.mode} → ${drop.landed.mode}`);
+
+  const pos = await page.evaluate(() => __msgs.filter((m) => m.type === 'pos').length);
+  check(pos > 20, 'position updates are sent to the host', `${pos} messages`);
+  check(errors.length === 0, 'pet.html: no page errors', errors.slice(0, 3).join(' | '));
+  await page.close();
+}
+
+// --- 2. the web demo -----------------------------------------------------------
+for (const [name, viewport] of [['desktop', { width: 1280, height: 760 }], ['phone', { width: 390, height: 800 }]]) {
+  const { page, errors } = await open('docs/index.html', viewport);
+  await page.waitForTimeout(1200);
+  const box = await page.evaluate(() => {
+    const r = document.getElementById('pet-box').getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth };
+  });
+  check(box.left >= -40 && box.right <= box.vw + 40 && box.top > 0 && box.bottom <= box.vh, `demo (${name}): the pig is on screen`, JSON.stringify(box));
+  check(box.sw <= box.vw, `demo (${name}): no horizontal overflow`);
+  await page.click('[data-cmd="dance"]');
+  await page.waitForTimeout(500);
+  check((await page.evaluate(() => piggy.state().clip)) === 'dance', `demo (${name}): buttons drive the pig`);
+  if (shotDir) await page.screenshot({ path: resolve(shotDir, `demo-${name}.png`) });
+  await page.click('#btn-assistant');
+  await page.waitForTimeout(1800);
+  const s = await page.evaluate(() => piggy.state());
+  check(s.siri && s.y > 50, `demo (${name}): assistant mode lifts the pig up to the panel`, `y=${s.y.toFixed(0)}`);
+  if (shotDir) await page.screenshot({ path: resolve(shotDir, `demo-${name}-assistant.png`) });
+  check(errors.length === 0, `demo (${name}): no page errors`, errors.slice(0, 3).join(' | '));
+  await page.close();
+}
+
+await browser.close();
+console.log(failed ? `\n${failed} check(s) failed` : '\nall checks passed');
+process.exit(failed ? 1 : 0);

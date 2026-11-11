@@ -1,0 +1,63 @@
+/* English for the Shortcuts actions. The source language (in Intents.swift) is Simplified Chinese. */
+
+"跟小猪打招呼" = "Say Hi to Piggy";
+"桌面小猪会向你挥手问好。" = "The desk piggy waves hello.";
+"小猪在跟你打招呼～" = "Piggy is waving at you!";
+
+"让小猪跳舞" = "Make Piggy Dance";
+"桌面小猪跳一支舞。" = "The desk piggy does a little dance.";
+"小猪跳起来啦～" = "Piggy is dancing!";
+
+"让小猪跳一下" = "Make Piggy Hop";
+"桌面小猪原地蹦一下。" = "The desk piggy hops on the spot.";
+"蹦！" = "Boing!";
+
+"喂小猪" = "Feed Piggy";
+"给桌面小猪一个苹果。" = "Give the desk piggy an apple.";
+"小猪开饭啦～" = "Snack time for Piggy!";
+
+"让小猪睡觉" = "Put Piggy to Sleep";
+"桌面小猪坐下打个盹。" = "The desk piggy sits down for a nap.";
+"小猪去睡觉了，晚安～" = "Piggy is off to sleep. Night night!";
+
+"叫醒小猪" = "Wake Piggy Up";
+"把睡着的桌面小猪叫醒。" = "Wake the desk piggy from its nap.";
+"小猪醒啦～" = "Piggy is awake!";
+
+"叫小猪过来" = "Call Piggy Over";
+"桌面小猪会跑到鼠标指针旁边。" = "The desk piggy runs over to your pointer.";
+"小猪跑过来了～" = "Piggy is on its way!";
+
+"让小猪躲起来" = "Hide Piggy";
+"暂时把桌面小猪藏起来。" = "Tuck the desk piggy away for a while.";
+"小猪躲起来了。" = "Piggy is hiding.";
+
+"让小猪出来" = "Show Piggy";
+"让藏起来的桌面小猪回到桌面。" = "Bring the desk piggy back to the desktop.";
+"小猪回来啦～" = "Piggy is back!";
+
+"让小猪变身" = "Transform Piggy";
+"让桌面小猪进入或退出发光悬浮的助手形态。" = "Switch the desk piggy's glowing, hovering assistant form on or off.";
+"助手形态" = "Assistant form";
+"小猪变身！" = "Piggy, transform!";
+"小猪变回来了。" = "Piggy is back to normal.";
+
+"小猪的动作" = "Piggy Trick";
+"打招呼" = "Wave";
+"跳舞" = "Dance";
+"跳一下" = "Hop";
+"吃苹果" = "Eat an apple";
+"坐下" = "Sit";
+"睡觉" = "Sleep";
+"起床" = "Wake up";
+"过来" = "Come here";
+
+"让小猪做动作" = "Make Piggy Do a Trick";
+"让桌面小猪做一个指定的动作。" = "Have the desk piggy do the trick you pick.";
+"动作" = "Trick";
+"让小猪%@" = "Make Piggy %@";
+
+"让小猪说话" = "Make Piggy Speak";
+"让桌面小猪用气泡说一句话。" = "The desk piggy says something in a speech bubble.";
+"内容" = "Text";
+"让小猪说%@" = "Make Piggy say %@";

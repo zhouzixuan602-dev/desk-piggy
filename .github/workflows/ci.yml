@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web · bundle, unit and render tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Committed bundles match the sources
+        run: npm run check
+      - name: Unit tests
+        run: npm test
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Render smoke test
+        run: npm run test:render -- --shots shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-screenshots
+          path: shots
+          if-no-files-found: ignore
+
+  macos:
+    name: macOS · build, launch and package
+    runs-on: macos-latest
+    env:
+      APP: build/Release/Desk Piggy.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+
+      - name: Build (universal, ad-hoc signed)
+        run: |
+          set -o pipefail
+          VERSION_ARGS=()
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION_ARGS=("MARKETING_VERSION=${GITHUB_REF_NAME#v}" "CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER")
+          fi
+          xcodebuild -project macos/DeskPiggy.xcodeproj -target DeskPiggy -configuration Release \
+            SYMROOT="$PWD/build" OBJROOT="$PWD/build/obj" "${VERSION_ARGS[@]}" build 2>&1 | tee build.log
+
+      - name: Build problems
+        if: failure()
+        run: |
+          grep -nE "error:|BUILD FAILED|The following build commands failed" -A4 build.log | tail -n 200 || true
+
+      - name: Inspect the bundle
+        run: |
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c Print "$APP/Contents/Info.plist"
+          echo "--- resources"
+          find "$APP/Contents/Resources" -maxdepth 2 | sort
+          test -f "$APP/Contents/Resources/pet.html"
+          test -d "$APP/Contents/Resources/Metadata.appintents"
+          echo "--- binary"
+          lipo -archs "$APP/Contents/MacOS/Desk Piggy"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      - name: Launch and self-check
+        run: |
+          DESKPIGGY_SMOKE_REPORT="$PWD/smoke.json" "$APP/Contents/MacOS/Desk Piggy" &
+          PID=$!
+          for i in 1 2 3; do
+            sleep 5
+            kill -0 "$PID" 2>/dev/null && screencapture -x "smoke-$i.png" 2>/dev/null || true
+          done
+          STATUS=0
+          wait "$PID" || STATUS=$?
+          echo "exit status: $STATUS"
+          cat smoke.json 2>/dev/null || echo "no report was written"
+          if [ "$STATUS" -eq 3 ]; then
+            echo "::warning::This runner's web view has no WebGL, so the pig could not be drawn here. The bridge itself was not exercised."
+            exit 0
+          fi
+          exit "$STATUS"
+
+      - name: Package
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent "$APP" DeskPiggy-macOS.zip
+          shasum -a 256 DeskPiggy-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeskPiggy-macOS
+          path: DeskPiggy-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-diagnostics
+          path: |
+            build.log
+            smoke.json
+            smoke-*.png
+          if-no-files-found: ignore
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [web, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: DeskPiggy-macOS
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" DeskPiggy-macOS.zip \
+            --title "Desk Piggy $GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md \
+            --generate-notes

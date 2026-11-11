@@ -1,0 +1,25 @@
+{
+  "name": "desk-piggy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A 3D desktop pet pig for macOS that becomes Siri's face",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
+    "test:render": "node tests/render/smoke.mjs",
+    "check": "node scripts/build.mjs --check"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "playwright": "1.63.0",
+    "three": "^0.187.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhouzixuan602-dev/desk-piggy.git"
+  },
+  "homepage": "https://github.com/zhouzixuan602-dev/desk-piggy"
+}
