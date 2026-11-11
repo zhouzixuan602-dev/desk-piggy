@@ -125,6 +125,7 @@ final class SmokeTest: NSObject {
         report["windowLevel"] = pet.panel.level.rawValue
         report["hit"] = ["cx": Double(pet.hit.cx), "cy": Double(pet.hit.cy), "rx": Double(pet.hit.rx), "ry": Double(pet.hit.ry), "foot": Double(pet.hit.foot)]
         report["screens"] = NSScreen.screens.map { NSStringFromRect($0.frame) }
+        report["display"] = Display.summary
         report["watcher"] = watcher.diagnostics()
         report["seconds"] = Date().timeIntervalSince(started)
         if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {

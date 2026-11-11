@@ -90,6 +90,13 @@ final class Settings {
         set { defaults.set(String(newValue.trimmingCharacters(in: .whitespacesAndNewlines).prefix(24)), forKey: "name") }
     }
 
+    /// Copy every frame onto a 2D canvas instead of showing the WebGL canvas directly.
+    /// For the rare setup where the pig is drawn but does not appear (see Display.swift).
+    var compatibleDisplay: Bool {
+        get { bool("compatibleDisplay", default: false) }
+        set { defaults.set(newValue, forKey: "compatibleDisplay") }
+    }
+
     /// The pig's appearance, as the JSON the Appearance window produced (see web/src/look.js).
     /// Empty means the default look.
     var look: String {

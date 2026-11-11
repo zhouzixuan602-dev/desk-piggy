@@ -76,6 +76,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
         let configuration = WKWebViewConfiguration()
         let content = WKUserContentController()
+        content.addUserScript(Display.bootstrap())
         configuration.userContentController = content
         webView = WKWebView(frame: NSRect(origin: .zero, size: size), configuration: configuration)
         super.init()
@@ -121,6 +122,14 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             return
         }
         webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+    }
+
+    /// Start the page again so that a changed display setting takes effect.
+    func reloadDisplay() {
+        let content = webView.configuration.userContentController
+        content.removeAllUserScripts()
+        content.addUserScript(Display.bootstrap())
+        loadPage()
     }
 
     private func run(_ script: String) {

@@ -1,11 +1,17 @@
-// Renderer, camera, lights and the soft contact shadow.
+// Renderer, camera, lights and the soft contact shadow, on a transparent canvas.
 //
-// The visible canvas is a plain, transparent 2D canvas. WebGL draws into a canvas that
-// is never attached to the page, and every finished frame is copied across. That costs
-// one small copy per frame, but it means the pig is shown through the same path as any
-// 2D drawing. WebGL layers themselves are not always put on screen: in virtual machines
-// (including the macOS CI runners) the page renders correctly, snapshots contain the
-// pig, and yet the canvas stays invisible in the window.
+// There are two ways to get a frame onto the screen:
+//
+//   'direct'  WebGL draws straight into the visible canvas. Efficient, and how every
+//             WebGL page works. The default.
+//   'copy'    WebGL draws into a canvas that is never attached to the page, and each
+//             finished frame is copied onto the visible canvas with 2D drawImage.
+//
+// 'copy' exists because a WebGL layer is not always composited: in virtual machines
+// (the macOS CI runners among them) WebGL renders correctly, page snapshots contain the
+// pig, and yet the canvas stays invisible in the window, while DOM and 2D canvases show.
+// Copying is much slower there, but visible. The macOS app picks 'copy' on a virtual GPU
+// and offers it as a setting.
 
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -27,9 +33,10 @@ function shadowTexture(size = 256) {
   return new THREE.CanvasTexture(c);
 }
 
-export function createStage3D(canvas) {
-  const surface = document.createElement('canvas'); // off-screen WebGL target
-  const screen = canvas.getContext('2d');
+export function createStage3D(canvas, { present = 'direct' } = {}) {
+  const copying = present === 'copy';
+  const surface = copying ? document.createElement('canvas') : canvas; // what WebGL draws into
+  const screen = copying ? canvas.getContext('2d') : null;
   const renderer = new THREE.WebGLRenderer({
     canvas: surface,
     alpha: true,
@@ -104,8 +111,10 @@ export function createStage3D(canvas) {
     height = h;
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h, false);
-    canvas.width = surface.width;
-    canvas.height = surface.height;
+    if (copying) {
+      canvas.width = surface.width;
+      canvas.height = surface.height;
+    }
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
@@ -121,6 +130,7 @@ export function createStage3D(canvas) {
 
   function render() {
     renderer.render(scene, camera);
+    if (!copying) return;
     // Copy while the frame is still in the drawing buffer (it is discarded after this task).
     screen.clearRect(0, 0, canvas.width, canvas.height);
     if (surface.width && surface.height) screen.drawImage(surface, 0, 0);
@@ -129,5 +139,5 @@ export function createStage3D(canvas) {
   /** Pixels per world unit at z = 0 for a canvas `h` CSS pixels tall. */
   const pxPerUnit = (h = height) => h / VIEW.extent;
 
-  return { renderer, scene, camera, resize, render, setShadow, pxPerUnit, shadow };
+  return { renderer, scene, camera, resize, render, setShadow, pxPerUnit, shadow, present: copying ? 'copy' : 'direct' };
 }

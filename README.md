@@ -43,6 +43,8 @@
 
 不想处理签名提示的话，可以[自己从源码构建](#开发)。
 
+**看不到小猪？** 如果菜单栏有 🐷、但桌面上没有小猪，点 🐷 打开 **兼容显示**。虚拟机里会自动启用这个模式（虚拟显卡画得出 WebGL 却显示不出来），真机一般用不到。
+
 ## 和 Siri 一起用
 
 ### 变身
@@ -117,6 +119,7 @@ macOS 没有公开接口可以替换 Siri 自己的界面，所以小猪不是�
 │  SiriWatcher     每秒看 4 次屏幕上有没有 Siri 的窗口         │
 │  Intents         App Intents：Siri 语音短语和快捷指令动作    │
 │  LookWindow      外观窗口（同一个页面的“外观”模式）          │
+│  Display         选择直接显示 WebGL，还是逐帧拷贝到 2D 画布   │
 └───────────────┬──────────────────────────▲─────────────────┘
         piggy.command() / siri()      pos / hit / mode
 ┌───────────────▼──────────────────────────┴─────────────────┐
@@ -187,6 +190,7 @@ xcodebuild -project macos/DeskPiggy.xcodeproj -target DeskPiggy -configuration R
 - **Siri phrases:** “Say hi to Piggy”, “Make Piggy dance”, “Make Piggy hop”, “Feed Piggy”, “Put Piggy to sleep”, “Wake Piggy up”, “Call Piggy over”, “Hide Piggy”, “Show Piggy”, “Transform Piggy”. They work as soon as the app has been launched once, and every action is also available in the Shortcuts app.
 - **Make it yours:** **Appearance…** in the menu opens a live preview with three eye styles, colours for the body, snout and scarf, and switches for the scarf, pale belly and blush.
 - **URL scheme:** `deskpiggy://dance`, `deskpiggy://say?text=Hello`, `deskpiggy://assistant/on`.
+- **Can't see the pig?** If the 🐷 is in the menu bar but nothing is on the desktop, turn on **Compatibility display** in the menu. It is switched on automatically in virtual machines, whose GPUs render WebGL but do not show it.
 - **What it can't do:** macOS offers no way to reskin Siri itself. The pig is a stand-in that hovers next to Siri's own panel; it knows Siri is up by spotting Siri's window on screen (owner and position only, no content, no permissions). If the pig doesn't transform on your macOS version, open **Siri diagnostics…** from the menu and paste the text into an issue.
 
 The pig is modelled entirely in code (no model files) and rendered with three.js inside a transparent `WKWebView`; a small Swift shell handles the window, Siri detection and App Intents. See [开发](#开发) for build and test commands.

@@ -76,6 +76,7 @@ const coverage = (page) =>
 
   const cov = await coverage(page);
   check(cov > 0.05 && cov < 0.6, 'pig is drawn on a transparent canvas', `${(cov * 100).toFixed(1)}% of pixels`);
+  check((await page.evaluate(() => piggy.state().present)) === 'direct', 'frames go straight to the screen by default');
   if (shotDir) await page.screenshot({ path: resolve(shotDir, 'pet.png'), omitBackground: true });
 
   const commands = await page.evaluate(() => piggy.commands);
@@ -145,6 +146,36 @@ const coverage = (page) =>
   const pos = await page.evaluate(() => __msgs.filter((m) => m.type === 'pos').length);
   check(pos > 20, 'position updates are sent to the host', `${pos} messages`);
   check(errors.length === 0, 'pet.html: no page errors', errors.slice(0, 3).join(' | '));
+  await page.close();
+}
+
+// --- 1b. the compatibility path: WebGL off-screen, frames copied to a 2D canvas -------
+{
+  const { page, errors } = await open('macos/DeskPiggy/Resources/pet.html', {
+    width: 300,
+    height: 340,
+    init: () => {
+      globalThis.__DESKPIGGY_PRESENT = 'copy';
+      globalThis.webkit = { messageHandlers: { piggy: { postMessage() {} } } };
+    },
+  });
+  await page.evaluate(() => {
+    piggy.pause(true);
+    piggy.config({ roam: false });
+    piggy.stage({ width: 1440, height: 800 });
+    piggy.place(700, 0);
+  });
+  const kind = await page.evaluate(() => ({ present: piggy.state().present, is2d: !!document.getElementById('pet').getContext('2d') }));
+  check(kind.present === 'copy' && kind.is2d, 'copy presentation: the visible canvas is a 2D canvas', JSON.stringify(kind));
+  const cov = await coverage(page);
+  check(cov > 0.05 && cov < 0.6, 'copy presentation: the pig is drawn', `${(cov * 100).toFixed(1)}% of pixels`);
+  await page.evaluate(() => {
+    piggy.siri(true, null);
+    piggy.step(1 / 60, 120);
+  });
+  const glow = await coverage(page);
+  check(glow > cov, 'copy presentation: the halo is drawn too', `${(glow * 100).toFixed(1)}% of pixels`);
+  check(errors.length === 0, 'copy presentation: no page errors', errors.slice(0, 3).join(' | '));
   await page.close();
 }
 

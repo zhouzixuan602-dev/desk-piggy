@@ -60,7 +60,9 @@ const stored = {
   },
 };
 
-const pet = createPet({ canvas: $('#pet'), overlay: box, host, lang, look: stored.read() });
+// ?present=copy switches to the compatibility path the macOS app uses on virtual GPUs.
+const present = new URLSearchParams(location.search).get('present') === 'copy' ? 'copy' : 'direct';
+const pet = createPet({ canvas: $('#pet'), overlay: box, host, lang, look: stored.read(), present });
 window.piggy = pet;
 const lookPanel = createLookPanel($('#look-panel'), {
   look: pet.state().look,

@@ -140,8 +140,6 @@ jobs:
           shown.crop(box).save("pig-on-screen.png")
           assert changed > 0.05, "the pig is not visible on screen"
           PY
-          # TEMPORARY: show the crop in the log (artifacts cannot be fetched during development).
-          sips -s format jpeg -s formatOptions 60 pig-on-screen.png --out pig.jpg >/dev/null 2>&1 && { echo "-----BEGIN SHOT-----"; base64 -i pig.jpg | fold -w 180; echo "-----END SHOT-----"; }
 
       - name: Package
         run: |

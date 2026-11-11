@@ -19,9 +19,10 @@ export const VERSION = '0.1.0';
  * @param {HTMLCanvasElement} o.canvas  transparent canvas the pig is drawn on
  * @param {HTMLElement} o.overlay       positioned parent for the speech bubble
  * @param {{setPosition(x:number,y:number):void, emit?(type:string,data?:object):void}} o.host
+ * @param {'direct'|'copy'} [o.present]  how frames reach the screen (see stage3d.js)
  */
-export function createPet({ canvas, overlay, host, lang = 'en', name = '', look: initialLook = null }) {
-  const stage = createStage3D(canvas);
+export function createPet({ canvas, overlay, host, lang = 'en', name = '', look: initialLook = null, present = 'direct' }) {
+  const stage = createStage3D(canvas, { present });
   const { root, rig } = createPig();
   stage.scene.add(root);
   let look = applyLook(rig, normalizeLook(initialLook));
@@ -147,6 +148,7 @@ export function createPet({ canvas, overlay, host, lang = 'en', name = '', look:
       lang: settings.lang,
       name: settings.name || STRINGS[settings.lang].name,
       look: { ...look },
+      present: stage.present,
     }),
     pause(on = true) {
       paused = on;

@@ -155,6 +155,7 @@ final class SiriWatcher: NSObject {
         let furnitureText = screenSizedIsFurniture.map { "\($0)" } ?? "undecided"
         var lines: [String] = []
         lines.append("Desk Piggy \(appVersion) · macOS \(version)")
+        lines.append("display: \(Display.summary)")
         lines.append("assistant active: \(presence.active)  frame: \(frameText)  level: \(levelText)")
         lines.append("screen-sized window treated as furniture: \(furnitureText)")
         lines.append("")

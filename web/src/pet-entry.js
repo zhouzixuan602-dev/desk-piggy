@@ -4,11 +4,17 @@
 //     `window.piggy`, and the pig talks back via `webkit.messageHandlers.piggy`
 //   • the Appearance window — when Swift sets `window.__DESKPIGGY_MODE = "look"` before
 //     the page loads, the page becomes a preview of the pig next to its controls
+//
+// Swift may also set `window.__DESKPIGGY_PRESENT = "copy"` (virtual GPU, or the
+// "Compatibility display" setting) to change how frames are put on screen.
 
 import { createPet, VERSION } from './pet.js';
 import { createLookPanel } from './look-panel.js';
 import { normalizeLook } from './look.js';
 import { pickLang } from './i18n.js';
+
+// Set by the shell before the page loads; see stage3d.js for what it means.
+const present = globalThis.__DESKPIGGY_PRESENT === 'copy' ? 'copy' : 'direct';
 
 const bridge = globalThis.webkit?.messageHandlers?.piggy;
 const post = (message) => {
@@ -29,6 +35,7 @@ function startPet() {
     overlay: document.getElementById('wrap'),
     host,
     lang: navigator.language,
+    present,
   });
   globalThis.piggy = pet;
   post({ type: 'ready', version: VERSION });
@@ -57,6 +64,7 @@ function startLookEditor() {
     overlay: document.getElementById('wrap'),
     host: { setPosition() {}, emit() {} },
     lang: navigator.language,
+    present,
   });
   // A model on a stand: no wandering off, no chatter.
   pet.config({ roam: false, chatty: false });

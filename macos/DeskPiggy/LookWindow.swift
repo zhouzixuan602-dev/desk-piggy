@@ -23,7 +23,7 @@ final class LookWindowController: NSObject, WKScriptMessageHandler, NSWindowDele
 
         let configuration = WKWebViewConfiguration()
         let content = WKUserContentController()
-        content.addUserScript(WKUserScript(source: "window.__DESKPIGGY_MODE = 'look';", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        content.addUserScript(Display.bootstrap(mode: "look"))
         content.add(WeakScriptHandler(self), name: "piggy")
         configuration.userContentController = content
 

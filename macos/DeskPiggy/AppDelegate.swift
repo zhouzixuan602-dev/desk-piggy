@@ -248,6 +248,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
 
         tell(pet.isHidden ? L("让小猪出来", "Show the pig") : L("让小猪躲起来", "Hide the pig"), "toggle")
+        add(L("兼容显示（看不到小猪时开启）", "Compatibility display (if the pig is invisible)"), checked: Display.copiesFrames) { [weak self] in
+            settings.compatibleDisplay.toggle()
+            self?.pet.reloadDisplay()
+        }
         add(L("Siri 诊断…", "Siri diagnostics…")) { [weak self] in self?.showDiagnostics() }
         add(L("关于桌面小猪", "About Desk Piggy")) {
             NSApp.activate(ignoringOtherApps: true)
