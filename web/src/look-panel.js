@@ -1,18 +1,28 @@
-// The appearance controls: eye style, three colours, three switches.
+// The appearance controls: eye style, three colours, three switches — and, optionally,
+// a section for wearing your own model file instead of the built-in pig.
 // Plain DOM, shared by the web demo and the macOS app's Appearance window.
 
 import { DEFAULT_LOOK, EYE_STYLES, normalizeLook } from './look.js';
+import { DEFAULT_ADJUST, MODEL_FORMATS, formatOf, normalizeAdjust } from './custom-model.js';
 
 const TEXT = {
   zh: {
     eyes: '眼睛', sparkle: '闪亮', button: '圆眼', dot: '豆豆',
     body: '身体', snout: '鼻子', scarf: '围巾', pick: '自选颜色',
     showScarf: '戴围巾', showBelly: '浅色肚皮', showBlush: '腮红', reset: '恢复默认',
+    model: '模型', builtin: '内置小猪', choose: '选择模型文件…', back: '换回内置小猪',
+    formats: '支持 GLB、glTF、FBX、OBJ。文件只在这台电脑上读取，不会上传。',
+    loading: '正在载入…', failed: '载入失败：', unsupported: '不支持这种文件，请选 GLB、glTF、FBX 或 OBJ。',
+    size: '大小', facing: '朝向', height: '高度', zUp: 'Z 轴朝上', tint: '统一上色',
   },
   en: {
     eyes: 'Eyes', sparkle: 'Sparkly', button: 'Round', dot: 'Dot',
     body: 'Body', snout: 'Snout', scarf: 'Scarf', pick: 'Custom colour',
     showScarf: 'Wear the scarf', showBelly: 'Pale belly', showBlush: 'Blush', reset: 'Reset',
+    model: 'Model', builtin: 'Built-in piggy', choose: 'Choose a model file…', back: 'Back to the built-in piggy',
+    formats: 'GLB, glTF, FBX or OBJ. The file is only read on this computer; nothing is uploaded.',
+    loading: 'Loading…', failed: 'Could not load it: ', unsupported: 'That file type is not supported. Choose a GLB, glTF, FBX or OBJ.',
+    size: 'Size', facing: 'Facing', height: 'Height', zUp: 'Z axis is up', tint: 'Paint one colour',
   },
 };
 
@@ -43,6 +53,18 @@ const CSS = `
 .lp-flags{display:flex;flex-wrap:wrap;gap:6px 16px}
 .lp-flags label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
 .lp-flags input{width:16px;height:16px;margin:0;accent-color:var(--accent,#ff6f9c)}
+.lp-model{display:grid;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--glass-edge,rgba(0,0,0,.12))}
+.lp-model-name{font-weight:600;overflow-wrap:anywhere}
+.lp-model-row{display:flex;flex-wrap:wrap;gap:6px}
+.lp-btn{padding:6px 12px;font:inherit;font-weight:600;color:inherit;border-radius:10px;cursor:pointer;
+  border:1px solid var(--glass-edge,rgba(0,0,0,.12));background:var(--chip,rgba(255,255,255,.78))}
+.lp-btn:focus-visible{outline:2.5px solid var(--accent,#ff6f9c);outline-offset:2px}
+.lp-note{margin:0;font-size:12px;color:var(--ink-soft,#8a6272)}
+.lp-note.bad{color:#c62f4f}
+.lp-sliders{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center}
+.lp-sliders input[type=range]{width:100%;margin:0;accent-color:var(--accent,#ff6f9c)}
+.look-panel.custom .lp-builtin{display:none}
+.look-panel:not(.custom) .lp-custom{display:none}
 .lp-reset{justify-self:start;padding:6px 12px;font:inherit;font-weight:600;color:inherit;border-radius:10px;cursor:pointer;
   border:1px solid var(--glass-edge,rgba(0,0,0,.12));background:var(--chip,rgba(255,255,255,.78))}
 `;
@@ -57,7 +79,10 @@ const el = (tag, props = {}, ...children) => {
  * @param {HTMLElement} container
  * @param {{look?: object, lang?: string, onChange?: (look: object) => void}} options
  */
-export function createLookPanel(container, { look: initial, lang: initialLang = 'en', onChange } = {}) {
+export function createLookPanel(
+  container,
+  { look: initial, lang: initialLang = 'en', onChange, model: modelOptions = null, onModelFile, onModelPick, onModelAdjust, onModelClear } = {},
+) {
   if (!document.getElementById('look-panel-css')) {
     document.head.append(el('style', { id: 'look-panel-css', textContent: CSS }));
   }
@@ -79,6 +104,70 @@ export function createLookPanel(container, { look: initial, lang: initialLang = 
 
   const root = el('div', { className: 'look-panel' });
 
+  // Your own model (only where the host supports it)
+  let custom = null; // { name, adjust } while a custom model is worn
+  const modelUi = {};
+  if (modelOptions) {
+    const name = el('div', { className: 'lp-model-name' });
+    const note = el('p', { className: 'lp-note' });
+    const choose = text('button', 'choose', { type: 'button', className: 'lp-btn', id: 'lp-model-choose' });
+    const back = text('button', 'back', { type: 'button', className: 'lp-btn lp-custom', id: 'lp-model-back' });
+    const file = el('input', { type: 'file', id: 'lp-model-file', accept: MODEL_FORMATS.map((f) => `.${f}`).join(','), hidden: true });
+    choose.addEventListener('click', () => (modelOptions.pick === 'native' ? onModelPick?.() : file.click()));
+    back.addEventListener('click', () => onModelClear?.());
+    file.addEventListener('change', async () => {
+      const picked = file.files?.[0];
+      file.value = '';
+      if (!picked) return;
+      const format = formatOf(picked.name);
+      if (!format) return api.setModelStatus('unsupported');
+      api.setModelStatus('loading');
+      onModelFile?.({ buffer: await picked.arrayBuffer(), name: picked.name, format });
+    });
+
+    const sliders = el('div', { className: 'lp-sliders lp-custom' });
+    const range = (key, labelKey, min, max, step) => {
+      const input = el('input', { type: 'range', id: `lp-model-${key}`, min, max, step });
+      input.addEventListener('input', () => adjustModel({ [key]: Number(input.value) }));
+      sliders.append(el('label', { htmlFor: input.id }, text('span', labelKey)), input);
+      return input;
+    };
+    modelUi.scale = range('scale', 'size', 0.3, 3, 0.01);
+    modelUi.yaw = range('yaw', 'facing', -180, 180, 1);
+    modelUi.lift = range('lift', 'height', -1, 1.5, 0.01);
+    const flags = el('div', { className: 'lp-flags lp-custom' });
+    for (const key of ['zUp', 'tint']) {
+      const input = el('input', { type: 'checkbox', id: `lp-model-${key}` });
+      input.addEventListener('change', () => adjustModel({ [key]: input.checked }));
+      modelUi[key] = input;
+      flags.append(el('label', { htmlFor: input.id }, input, text('span', key)));
+    }
+    Object.assign(modelUi, { name, note });
+    root.append(el('fieldset', { className: 'lp-model' }, text('legend', 'model'), name, el('div', { className: 'lp-model-row' }, choose, back, file), sliders, flags, note));
+  }
+
+  function adjustModel(patch) {
+    if (!custom) return;
+    custom.adjust = normalizeAdjust(patch, custom.adjust);
+    onModelAdjust?.({ ...custom.adjust });
+  }
+
+  let status = null; // 'loading' | 'unsupported' | { failed: message } | null
+  function syncModel() {
+    if (!modelOptions) return;
+    root.classList.toggle('custom', !!custom);
+    modelUi.name.textContent = custom ? custom.name || t('model') : t('builtin');
+    const a = custom?.adjust || DEFAULT_ADJUST;
+    modelUi.scale.value = a.scale;
+    modelUi.yaw.value = a.yaw;
+    modelUi.lift.value = a.lift;
+    modelUi.zUp.checked = a.zUp;
+    modelUi.tint.checked = a.tint;
+    const bad = status && status !== 'loading';
+    modelUi.note.classList.toggle('bad', !!bad);
+    modelUi.note.textContent = !status ? t('formats') : status === 'loading' ? t('loading') : status === 'unsupported' ? t('unsupported') : t('failed') + status.failed;
+  }
+
   // Eyes
   const eyeInputs = {};
   const seg = el('div', { className: 'lp-seg' });
@@ -88,7 +177,7 @@ export function createLookPanel(container, { look: initial, lang: initialLang = 
     eyeInputs[style] = input;
     seg.append(el('label', { htmlFor: input.id }, input, text('span', style)));
   }
-  root.append(el('fieldset', {}, text('legend', 'eyes'), seg));
+  root.append(el('fieldset', { className: 'lp-builtin' }, text('legend', 'eyes'), seg));
 
   // Colours
   const colorRows = {};
@@ -107,12 +196,13 @@ export function createLookPanel(container, { look: initial, lang: initialLang = 
     picker.addEventListener('input', () => change({ [key]: picker.value }));
     row.append(picker);
     colorRows[key] = { swatches, picker };
-    root.append(el('fieldset', {}, text('legend', key), row));
+    // the body colour stays: it is what "paint one colour" uses on a custom model
+    root.append(el('fieldset', { className: key === 'body' ? '' : 'lp-builtin' }, text('legend', key), row));
   }
 
   // Switches
   const flagInputs = {};
-  const flags = el('div', { className: 'lp-flags' });
+  const flags = el('div', { className: 'lp-flags lp-builtin' });
   for (const key of ['showScarf', 'showBelly', 'showBlush']) {
     const input = el('input', { type: 'checkbox', id: `lp-${key}` });
     input.addEventListener('change', () => change({ [key]: input.checked }));
@@ -121,7 +211,7 @@ export function createLookPanel(container, { look: initial, lang: initialLang = 
   }
   root.append(flags);
 
-  const reset = text('button', 'reset', { type: 'button', className: 'lp-reset', id: 'lp-reset' });
+  const reset = text('button', 'reset', { type: 'button', className: 'lp-reset lp-builtin', id: 'lp-reset' });
   reset.addEventListener('click', () => change({ ...DEFAULT_LOOK }));
   root.append(reset);
 
@@ -143,11 +233,7 @@ export function createLookPanel(container, { look: initial, lang: initialLang = 
     }
   }
 
-  sync();
-  translate();
-  container.append(root);
-
-  return {
+  const api = {
     el: root,
     get: () => ({ ...look }),
     /** Show a look that was changed elsewhere (does not fire onChange). */
@@ -158,6 +244,24 @@ export function createLookPanel(container, { look: initial, lang: initialLang = 
     setLang(next) {
       lang = TEXT[next] ? next : 'en';
       translate();
+      syncModel();
+    },
+    /** Show which model is worn: { name, adjust } for a custom one, null for the built-in pig. */
+    setModel(next) {
+      custom = next ? { name: String(next.name || ''), adjust: normalizeAdjust(next.adjust) } : null;
+      status = null;
+      syncModel();
+    },
+    /** 'loading', 'unsupported', an error message, or null to clear. */
+    setModelStatus(next) {
+      status = !next || next === 'loading' || next === 'unsupported' ? next || null : { failed: String(next) };
+      syncModel();
     },
   };
+
+  sync();
+  translate();
+  syncModel();
+  container.append(root);
+  return api;
 }

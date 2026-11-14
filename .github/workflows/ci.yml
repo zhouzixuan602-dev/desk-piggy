@@ -144,6 +144,21 @@ jobs:
           assert changed > 0.05, "the pig is not visible on screen"
           PY
 
+      - name: Wears a model file
+        run: |
+          # The same self-check again, this time wearing a small test model that the page has
+          # to fetch through the app's private URL scheme.
+          node -e "import('./tests/helpers/tiny-model.mjs').then((m) => require('fs').writeFileSync('test-model.gltf', m.tinyGltf()))"
+          STATUS=0
+          DESKPIGGY_SMOKE_REPORT="$PWD/smoke-model.json" DESKPIGGY_SMOKE_MODEL="$PWD/test-model.gltf" "$APP/Contents/MacOS/Desk Piggy" || STATUS=$?
+          echo "exit status: $STATUS"
+          cat smoke-model.json 2>/dev/null || echo "no report was written"
+          if [ "$STATUS" -eq 3 ]; then
+            echo "::warning::No WebGL on this runner, so wearing a model could not be checked."
+            exit 0
+          fi
+          exit "$STATUS"
+
       - name: Package
         run: |
           ditto -c -k --sequesterRsrc --keepParent "$APP" DeskPiggy-macOS.zip
@@ -161,6 +176,7 @@ jobs:
           path: |
             build.log
             smoke.json
+            smoke-model.json
             with-pig.png
             without-pig.png
             pig-on-screen.png

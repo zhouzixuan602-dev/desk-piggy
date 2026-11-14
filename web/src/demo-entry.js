@@ -38,8 +38,10 @@ const host = {
       moveBox();
     } else if (type === 'hide') box.classList.add('gone');
     else if (type === 'show') box.classList.remove('gone');
+    else if (type === 'model') modelError = data.ok ? '' : data.error;
   },
 };
+let modelError = '';
 
 // The look someone picked last time stays with their browser.
 const LOOK_KEY = 'deskpiggy.look';
@@ -70,6 +72,17 @@ const lookPanel = createLookPanel($('#look-panel'), {
   onChange(look) {
     pet.config({ look });
     stored.write(look);
+  },
+  // Your own model: read in this tab only, never uploaded, gone on reload.
+  model: { pick: 'input' },
+  async onModelFile({ buffer, name, format }) {
+    if (await pet.model({ buffer, name, format })) lookPanel.setModel({ name, adjust: pet.state().model.adjust });
+    else lookPanel.setModelStatus(modelError || 'error');
+  },
+  onModelAdjust: (adjust) => pet.modelAdjust(adjust),
+  async onModelClear() {
+    await pet.model(null);
+    lookPanel.setModel(null);
   },
 });
 

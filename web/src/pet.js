@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { createStage3D } from './stage3d.js';
 import { createPig, applyLook } from './pig.js';
 import { normalizeLook } from './look.js';
+import { createPuppet, parseModel, formatOf } from './custom-model.js';
 import { Animator } from './animator.js';
 import { createFx } from './fx.js';
 import { createBubble } from './bubble.js';
@@ -48,13 +49,80 @@ export function createPet({ canvas, overlay, host, lang = 'en', name = '', look:
     return { x: (probe.x * 0.5 + 0.5) * width, y: (probe.y * 0.5 + 0.5) * height };
   }
 
+  // The outline everything else is arranged around: half-width, mid height and top, in world units.
+  const PIG_SHAPE = Object.freeze({ halfW: 1.0, mid: 1.02, top: 2.14 });
+  let shape = PIG_SHAPE;
+
   let lastLift = 0;
   function reportHit(lift = 0) {
     lastLift = lift;
-    const c = toPx(0, 1.02 + lift);
-    const edge = toPx(1.0, 1.02 + lift);
-    const top = toPx(0, 2.14 + lift);
+    const c = toPx(0, shape.mid + lift);
+    const edge = toPx(shape.halfW, shape.mid + lift);
+    const top = toPx(0, shape.top + lift);
     host.emit?.('hit', { cx: c.x, cy: c.y, rx: edge.x - c.x, ry: top.y - c.y, foot: toPx(0, 0).y, w: width, h: height });
+  }
+
+  // --- custom model ----------------------------------------------------------
+  const wearPig = animator.apply;
+  let puppet = null;
+  let modelName = '';
+  let loading = 0;
+
+  function reshape() {
+    shape = puppet
+      ? { halfW: Math.max(0.45, puppet.size.width / 2 + 0.05), mid: puppet.size.height / 2, top: puppet.size.height + 0.08 }
+      : PIG_SHAPE;
+    reportHit(lastLift);
+  }
+
+  function dropModel() {
+    if (puppet) {
+      stage.scene.remove(puppet.root);
+      puppet.dispose();
+      puppet = null;
+    }
+    modelName = '';
+    root.visible = true;
+    animator.apply = wearPig;
+    reshape();
+  }
+
+  /**
+   * Wear a model file instead of the built-in pig, or pass null to go back.
+   * `spec` is { url | buffer, name?, format?, adjust? }. Resolves to true on success; the
+   * host is also told through a 'model' event, with the error message if it failed.
+   */
+  async function setModel(spec) {
+    const ticket = ++loading;
+    if (!spec) {
+      dropModel();
+      host.emit?.('model', { ok: true, kind: 'builtin' });
+      return true;
+    }
+    try {
+      const format = spec.format || formatOf(spec.name) || formatOf(spec.url);
+      let buffer = spec.buffer;
+      if (!buffer) {
+        const response = await fetch(spec.url);
+        if (!response.ok) throw new Error(`the file could not be read (${response.status})`);
+        buffer = await response.arrayBuffer();
+      }
+      const parsed = await parseModel(buffer, format);
+      if (ticket !== loading) return false; // a newer request overtook this one
+      const next = createPuppet(parsed, spec.adjust, look.body);
+      dropModel();
+      puppet = next;
+      modelName = String(spec.name || '').slice(0, 120);
+      root.visible = false;
+      stage.scene.add(puppet.root);
+      animator.apply = (pose) => puppet.applyPose(pose);
+      reshape();
+      host.emit?.('model', { ok: true, kind: 'custom', name: modelName, triangles: puppet.triangles });
+      return true;
+    } catch (error) {
+      if (ticket === loading) host.emit?.('model', { ok: false, error: String(error?.message || error) });
+      return false;
+    }
   }
 
   function layout() {
@@ -80,14 +148,15 @@ export function createPet({ canvas, overlay, host, lang = 'en', name = '', look:
   function tick(dt, draw = true) {
     brain.update(dt);
     const pose = animator.update(dt);
+    puppet?.update(dt);
     fx.update(dt, pose.y);
     if (!draw) return;
 
     // The contact shadow only makes sense while the canvas' ground is the real ground.
     const airborne = brain.pos.y / brain.unit;
-    stage.setShadow(0, pose.y + airborne * 0.6, pose.scale, Math.max(0, 1 - airborne / 1.4) * Math.min(1, pose.scale));
+    stage.setShadow(0, pose.y + airborne * 0.6, pose.scale * shape.halfW, Math.max(0, 1 - airborne / 1.4) * Math.min(1, pose.scale));
 
-    bubble.place(toPx(0, 2.2 + pose.y).y + 4);
+    bubble.place(toPx(0, shape.top + 0.06 + pose.y).y + 4);
     if (Math.abs(pose.y - lastLift) > 0.08) reportHit(pose.y);
     stage.render();
     frames++;
@@ -126,7 +195,10 @@ export function createPet({ canvas, overlay, host, lang = 'en', name = '', look:
       if (c.lang) settings.lang = pickLang(c.lang);
       if (typeof c.name === 'string') settings.name = c.name.trim().slice(0, 24);
       // `look` may be partial, or a JSON string as the macOS shell stores it
-      if (c.look != null) look = applyLook(rig, normalizeLook(c.look, look));
+      if (c.look != null) {
+        look = applyLook(rig, normalizeLook(c.look, look));
+        puppet?.setAdjust({}, look.body); // a painted model follows the body colour
+      }
       const { roam, siriSync, chatty } = c;
       const patch = {};
       if (typeof roam === 'boolean') patch.roam = roam;
@@ -135,6 +207,15 @@ export function createPet({ canvas, overlay, host, lang = 'en', name = '', look:
       brain.setConfig(patch);
     },
     say: (text, ms) => bubble.say(text, ms),
+    /** Wear a model file ({ url | buffer, name, format, adjust }) or null for the built-in pig. */
+    model: (spec) => setModel(spec),
+    /** Fine-tune the worn model: { scale, yaw, lift, zUp, tint }. Returns the settings in force. */
+    modelAdjust(adjust) {
+      if (!puppet) return null;
+      const applied = puppet.setAdjust(adjust, look.body);
+      reshape();
+      return applied;
+    },
     state: () => ({
       mode: brain.mode,
       clip: animator.name,
@@ -149,6 +230,7 @@ export function createPet({ canvas, overlay, host, lang = 'en', name = '', look:
       name: settings.name || STRINGS[settings.lang].name,
       look: { ...look },
       present: stage.present,
+      model: puppet ? { name: modelName, adjust: puppet.adjust, triangles: puppet.triangles, clips: puppet.clips } : null,
     }),
     pause(on = true) {
       paused = on;

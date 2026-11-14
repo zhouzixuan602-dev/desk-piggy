@@ -26,6 +26,8 @@ class Spring {
 export class Animator {
   constructor(rig, { rng = Math.random } = {}) {
     this.rig = rig;
+    /** Receives the finished pose each frame; swapped when a custom model is worn. */
+    this.apply = (pose) => applyPose(rig, pose);
     this.rng = rng;
     this.pose = { ...REST };
     this.out = { ...REST };
@@ -135,7 +137,7 @@ export class Animator {
     out.tail += s.tail.step(clamp(-vturn * 0.12, -0.8, 0.8), dt);
     out.scarf += s.scarf.step(clamp(-vturn * 0.05 + vy * 0.08, -0.7, 0.7), dt);
 
-    applyPose(this.rig, out);
+    this.apply(out);
     return out;
   }
 }

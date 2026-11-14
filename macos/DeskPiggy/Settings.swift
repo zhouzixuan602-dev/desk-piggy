@@ -104,6 +104,24 @@ final class Settings {
         set { defaults.set(newValue, forKey: "look") }
     }
 
+    /// The stored copy of the user's own model inside ModelStore.directory ("" = built-in pig).
+    var modelFile: String {
+        get { defaults.string(forKey: "modelFile") ?? "" }
+        set { defaults.set(newValue, forKey: "modelFile") }
+    }
+
+    /// The name the chosen file had, for display.
+    var modelName: String {
+        get { defaults.string(forKey: "modelName") ?? "" }
+        set { defaults.set(newValue, forKey: "modelName") }
+    }
+
+    /// Size, facing and so on for the worn model, as JSON (see web/src/custom-model.js).
+    var modelAdjust: String {
+        get { defaults.string(forKey: "modelAdjust") ?? "" }
+        set { defaults.set(newValue, forKey: "modelAdjust") }
+    }
+
     /// Where along the screen the pig was last standing, 0…1.
     var lastSpot: Double {
         get { defaults.object(forKey: "lastSpot") == nil ? 0.72 : min(1, max(0, defaults.double(forKey: "lastSpot"))) }

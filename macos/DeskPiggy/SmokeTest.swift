@@ -30,6 +30,8 @@ final class SmokeTest: NSObject {
     private var framesAtStart = 0
     private var transformed = false
     private var drawn = false
+    /// Optional: a model file to wear during the check (DESKPIGGY_SMOKE_MODEL=/path/model.gltf).
+    private let modelPath = ProcessInfo.processInfo.environment["DESKPIGGY_SMOKE_MODEL"] ?? ""
 
     private init(pet: PetController, watcher: SiriWatcher, path: String) {
         self.pet = pet
@@ -53,6 +55,15 @@ final class SmokeTest: NSObject {
         if pet.ready {
             waiting?.invalidate()
             report["readyAfter"] = elapsed
+            if !modelPath.isEmpty {
+                do {
+                    try ModelStore.adopt(URL(fileURLWithPath: modelPath))
+                    pet.applyModel()
+                } catch {
+                    finish(ok: false, reason: "the test model was refused: \(error.localizedDescription)")
+                    return
+                }
+            }
             pet.evaluate(SmokeTest.probe) { _ in }
             perform(#selector(readProbe), with: nil, afterDelay: 1.4)
         } else if let problem = pet.pageError {
@@ -108,8 +119,9 @@ final class SmokeTest: NSObject {
 
     @objc private func wrapUp() {
         let talked = pet.messageCount > 3
-        let ok = transformed && talked && drawn
-        finish(ok: ok, reason: ok ? "ok" : "transformed=\(transformed) drawn=\(drawn) messages=\(pet.messageCount)")
+        let modelFine = modelPath.isEmpty || pet.modelStatus == "custom"
+        let ok = transformed && talked && drawn && modelFine
+        finish(ok: ok, reason: ok ? "ok" : "transformed=\(transformed) drawn=\(drawn) messages=\(pet.messageCount) model=\(pet.modelStatus)")
     }
 
     private func finish(ok: Bool, reason: String, status: Int32? = nil) {
@@ -126,6 +138,8 @@ final class SmokeTest: NSObject {
         report["hit"] = ["cx": Double(pet.hit.cx), "cy": Double(pet.hit.cy), "rx": Double(pet.hit.rx), "ry": Double(pet.hit.ry), "foot": Double(pet.hit.foot)]
         report["screens"] = NSScreen.screens.map { NSStringFromRect($0.frame) }
         report["display"] = Display.summary
+        report["model"] = pet.modelStatus
+        if !modelPath.isEmpty { ModelStore.clear() } // leave nothing behind on the test machine
         report["watcher"] = watcher.diagnostics()
         report["seconds"] = Date().timeIntervalSince(started)
         if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {

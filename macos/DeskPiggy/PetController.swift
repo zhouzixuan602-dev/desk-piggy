@@ -50,6 +50,8 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     private(set) var hit = HitShape()
     private(set) var position = CGPoint.zero
     private(set) var messageCount = 0
+    /// What the page last said about wearing a custom model: "custom", "builtin" or an error.
+    private(set) var modelStatus = "builtin"
     private var pendingScripts: [String] = []
 
     private var stageScreen: NSScreen?
@@ -78,6 +80,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         let content = WKUserContentController()
         content.addUserScript(Display.bootstrap())
         configuration.userContentController = content
+        configuration.setURLSchemeHandler(ModelSchemeHandler(), forURLScheme: ModelStore.scheme)
         webView = WKWebView(frame: NSRect(origin: .zero, size: size), configuration: configuration)
         super.init()
 
@@ -188,6 +191,7 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         pendingScripts = []
         pushStage()
         pushSettings()
+        if ModelStore.fileURL != nil { applyModel() }
         run("piggy.place(\(number(position.x)), 0)")
         for script in queued { run(script) }
         if assistantActive { run("piggy.siri(true, null, {manual: true})") }
@@ -217,6 +221,13 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             if footMoved && !dragging { place() }
         case "mode":
             mode = body["mode"] as? String ?? mode
+        case "model":
+            if body["ok"] as? Bool == true {
+                modelStatus = body["kind"] as? String ?? "builtin"
+            } else {
+                modelStatus = "error: " + (body["error"] as? String ?? "unknown")
+                NSLog("DeskPiggy: the model could not be loaded: %@", modelStatus)
+            }
         case "hide":
             panel.orderOut(nil)
         case "show":
@@ -310,6 +321,18 @@ final class PetController: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         // The look travels as a JSON string; the page validates it before applying anything.
         let look = s.look.isEmpty ? "null" : quoted(s.look)
         run("piggy.config({lang: \(quoted(Lang.code)), name: \(quoted(s.name)), roam: \(s.roam), siriSync: \(s.siriSync), chatty: \(s.chatty), look: \(look)})")
+    }
+
+    /// Wear the stored model, or go back to the built-in pig if there is none.
+    func applyModel() {
+        run("void piggy.model(\(ModelStore.script()))")
+    }
+
+    /// Re-apply the saved size / facing / height of the worn model.
+    func applyModelAdjust() {
+        let adjust = Settings.shared.modelAdjust
+        guard !adjust.isEmpty else { return }
+        run("piggy.modelAdjust(JSON.parse(\(quoted(adjust))))")
     }
 
     /// Apply a new size, keeping the pig's feet where they are.

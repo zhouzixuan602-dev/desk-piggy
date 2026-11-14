@@ -59,10 +59,16 @@ function startLookEditor() {
   const side = Object.assign(document.createElement('div'), { id: 'look-side' });
   document.body.append(side);
 
+  let modelError = '';
   const pet = createPet({
     canvas: document.getElementById('pet'),
     overlay: document.getElementById('wrap'),
-    host: { setPosition() {}, emit() {} },
+    host: {
+      setPosition() {},
+      emit(type, data) {
+        if (type === 'model') modelError = data.ok ? '' : data.error;
+      },
+    },
     lang: navigator.language,
     present,
   });
@@ -79,6 +85,14 @@ function startLookEditor() {
       pet.command('stand'); // wake up and face front so the change is visible
       post({ type: 'look', look });
     },
+    // Choosing a file is the shell's job (it shows the open panel and keeps the copy).
+    model: { pick: 'native' },
+    onModelPick: () => post({ type: 'pickModel' }),
+    onModelClear: () => post({ type: 'clearModel' }),
+    onModelAdjust(adjust) {
+      pet.modelAdjust(adjust);
+      post({ type: 'modelAdjust', adjust });
+    },
   });
 
   globalThis.piggy = pet;
@@ -92,6 +106,21 @@ function startLookEditor() {
       if (lang) panel.setLang(pickLang(lang));
     },
     get: () => panel.get(),
+    /**
+     * Called by the shell: wear { url, name, format, adjust }, or null for the built-in pig.
+     * `status` lets the shell say that it is busy or that picking failed.
+     */
+    async model(spec) {
+      if (!spec) {
+        await pet.model(null);
+        panel.setModel(null);
+        return;
+      }
+      panel.setModelStatus('loading');
+      if (await pet.model(spec)) panel.setModel({ name: spec.name, adjust: pet.state().model.adjust });
+      else panel.setModelStatus(modelError || 'error');
+    },
+    status: (message) => panel.setModelStatus(message),
   };
   post({ type: 'lookReady', version: VERSION });
 }

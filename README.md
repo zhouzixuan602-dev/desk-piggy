@@ -24,6 +24,7 @@
 - **变身 Siri**：Siri 一出现，小猪就飞到 Siri 面板旁边，戴上彩色光环，竖起耳朵悬浮着听你说话；Siri 消失后回到原位。
 - **听 Siri 指挥**：“嘿 Siri，让小猪跳舞”。不用任何设置，应用打开过一次之后就能说。
 - **可以换装**：三种眼睛、身体 / 鼻子 / 围巾的颜色随便挑，围巾、浅色肚皮和腮红都能开关，边调边看效果。
+- **可以换成你自己的模型**：选一个 GLB / glTF / FBX / OBJ 文件，它就代替内置小猪站到桌面上，文件只留在你的电脑里。
 - **不打扰你**：只有鼠标真的碰到小猪时它才接管点击，透明区域照常穿透；不抢焦点，没有程序坞图标。
 
 整只小猪是用代码建模的：头、耳朵、鼻子、四肢、卷尾巴和围巾都是程序化生成的网格，没有任何外部模型文件，动作也全部是实时算出来的。
@@ -99,18 +100,29 @@ macOS 没有公开接口可以替换 Siri 自己的界面，所以小猪不是�
 
 - 动作：打招呼、跳舞、跳一下、喂苹果、坐下、睡觉、过来
 - Siri：呼叫 Siri、Siri 出现时自动变身、保持助手形态
-- 设置：自由走动、爱说话、大小（小 / 中 / 大）、站在程序坞上方或屏幕底边、外观、起名字、登录时启动
+- 设置：自由走动、爱说话、大小（小 / 中 / 大）、站在程序坞上方或屏幕底边、外观与模型、起名字、登录时启动
 - 其他：让小猪躲起来、Siri 诊断、退出
 
 ### 外观
 
-菜单里的 **外观…** 会打开一个带实时预览的小窗口：
+菜单里的 **外观与模型…** 会打开一个带实时预览的小窗口：
 
 - 眼睛：闪亮、圆眼、豆豆
 - 颜色：身体、鼻子、围巾各有一排预设色，也可以用取色器自选；耳朵内侧、蹄子、肚皮、腮红会跟着自动配色
 - 开关：戴围巾、浅色肚皮、腮红
 
 改动立刻生效并自动保存。在线演示里的「外观」区域是同一套控件。
+
+### 用自己的模型
+
+不想用内置的小猪，可以换成你自己的 3D 模型：在 **外观与模型…** 窗口里点 **选择模型文件…**。
+
+- 支持 **GLB、glTF、FBX、OBJ**。3ds Max 的 `.max`、Blender 的 `.blend` 这类工程文件不能直接用，需要先在对应软件里导出成上面的格式（推荐 GLB）。
+- 载入后会自动缩放、落地、居中；再用 **大小 / 朝向 / 高度** 调到合适，导入后“躺倒”的模型勾上 **Z 轴朝上**，材质丢失的勾上 **统一上色**。
+- 外来模型没有内置小猪的骨架，所以动作是整体的：蹦跳、压扁拉伸、倾斜、转身、缩放。气泡、粒子和助手光环照常。模型自带动画的话，会循环播放第一段。
+- 文件只会拷贝到这台 Mac 上本应用的文件夹里（`~/Library/Application Support/Desk Piggy/`），不会上传到任何地方。点 **换回内置小猪** 会把这份拷贝删掉。
+
+这个仓库和发布包里只有原创的内置小猪，不包含任何第三方模型。用别人的模型之前，请确认你有权这样用。
 
 ## 工作原理
 
@@ -122,12 +134,14 @@ macOS 没有公开接口可以替换 Siri 自己的界面，所以小猪不是�
 │  Intents         App Intents：Siri 语音短语和快捷指令动作    │
 │  LookWindow      外观窗口（同一个页面的“外观”模式）          │
 │  Display         选择直接显示 WebGL，还是逐帧拷贝到 2D 画布   │
+│  ModelStore      保存用户自己的模型，经私有 URL 交给页面      │
 └───────────────┬──────────────────────────▲─────────────────┘
         piggy.command() / siri()      pos / hit / mode
 ┌───────────────▼──────────────────────────┴─────────────────┐
 │  pet.html（WKWebView 里的单文件页面，Three.js）              │
 │  pig.js       程序化建模 + 骨架                             │
 │  look.js      外观：眼睛样式、配色推导、配饰开关             │
+│  custom-model.js  载入自己的模型（GLB / glTF / FBX / OBJ）   │
 │  clips.js     19 个动作，都是时间的纯函数                    │
 │  animator.js  动作混合、眨眼、注视、耳朵和尾巴的惯性          │
 │  brain.js     自主行为、拖拽与下落、助手形态                 │
@@ -190,7 +204,8 @@ xcodebuild -project macos/DeskPiggy.xcodeproj -target DeskPiggy -configuration R
 - **Try it in the browser:** <https://zhouzixuan602-dev.github.io/desk-piggy/>
 - **Install:** download `DeskPiggy-macOS.zip` from [Releases](https://github.com/zhouzixuan602-dev/desk-piggy/releases/latest), unzip, and move **Desk Piggy.app** to Applications. The app is not notarised, so macOS blocks the first launch: open **System Settings → Privacy & Security** and choose **Open Anyway**. Requires macOS 13 or later.
 - **Siri phrases:** “Say hi to Piggy”, “Make Piggy dance”, “Make Piggy hop”, “Feed Piggy”, “Put Piggy to sleep”, “Wake Piggy up”, “Call Piggy over”, “Hide Piggy”, “Show Piggy”, “Transform Piggy”. They work as soon as the app has been launched once, and every action is also available in the Shortcuts app.
-- **Make it yours:** **Appearance…** in the menu opens a live preview with three eye styles, colours for the body, snout and scarf, and switches for the scarf, pale belly and blush.
+- **Make it yours:** **Appearance and Model…** in the menu opens a live preview with three eye styles, colours for the body, snout and scarf, and switches for the scarf, pale belly and blush.
+- **Bring your own model:** in the same window, choose a GLB, glTF, FBX or OBJ file to wear instead of the built-in pig, then set its size, facing and height. It moves as a whole (hop, squash, lean, turn) and keeps the bubble, particles and halo. The file is only copied into the app's own folder on your Mac. Project files such as `.max` or `.blend` must be exported to one of those formats first. The repository and releases contain only the original built-in pig; make sure you have the right to use any model you load.
 - **URL scheme:** `deskpiggy://dance`, `deskpiggy://say?text=Hello`, `deskpiggy://assistant/on`.
 - **Can't see the pig?** If the 🐷 is in the menu bar but nothing is on the desktop, turn on **Compatibility display** in the menu. It is switched on automatically in virtual machines, whose GPUs render WebGL but do not show it.
 - **What it can't do:** macOS offers no way to reskin Siri itself. The pig is a stand-in that hovers next to Siri's own panel; it knows Siri is up by spotting Siri's window on screen (owner and position only, no content, no permissions). If the pig doesn't transform on your macOS version, open **Siri diagnostics…** from the menu and paste the text into an issue.
